@@ -106,6 +106,10 @@ They load automatically when Claude Code runs in this folder. To use them everyw
 
 Comments, answers and view settings are stored in the browser (`localStorage`) under `flowmotion:<FLOW.id>:`. Export comments to share them.
 
+## Contributing
+
+`main` and `release` are protected. Fork or branch from `main` (`feat/…`, `fix/…`, `docs/…`), make sure `node tools/audit.mjs .` exits 0, and open a pull request. The maintainer reviews and merges. Releases are tagged `vX.Y.Z` on `release`. Never commit real or private flows: this repo is public. See `AGENTS.md` § "Changing this repo".
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
