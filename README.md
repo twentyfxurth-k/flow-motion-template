@@ -18,9 +18,10 @@ No build, no dependencies, no network. Open `index.html` in a browser.
 - **Click a box:** see its details, its neighbours, and related questions.
 - **Questions drawer:** open questions with options, pros and cons, checkboxes and notes.
 - **Comment mode:** click anywhere on the chart to pin a comment; export as JSON or Markdown, import JSON.
+- **Export (`⬇ Export` / `X`):** SVG or PNG of the chart exactly as shown (mode, step, theme, Path only, tokens), or the whole page as **one HTML file** (engine + data) that plays offline. Option: include faint boxes of other modes.
 - **Deep links:** `#mode=after&scen=timeout&step=12&sel=node_id` opens that exact moment.
 - **Built-in validation:** the page and `node tools/check.mjs` list every data error (missing edges, hidden nodes, token jumps, overlaps).
-- **Layout audit:** the page lists every visual collision per mode (text overflow, lines through boxes, labels on lines, stacked lines).
+- **Layout audit:** the page lists every visual collision per mode (text overflow, lines through boxes, labels on lines, labels on lane titles, stacked lines).
 - Light and dark themes, keyboard shortcuts, works offline from `file://`.
 
 ## Quick start
@@ -53,7 +54,14 @@ Point your agent at this folder and ask, for example:
 
 ```sh
 node tools/check.mjs                    # data rules
-node tools/audit.mjs . --shots shots    # data + layout (every mode) + self test (every scenario) + screenshots
+node tools/audit.mjs . --shots shots    # data + layout (every mode) + self test (every scenario) + exports + screenshots
+```
+
+Export from the command line (same output as the button; for docs, CI or an agent):
+
+```sh
+node tools/export.mjs . --out export                                  # svg + png + html of the first mode / scenario
+node tools/export.mjs . --out export --mode after --scen timeout --step 12 --formats png --theme light
 ```
 
 Both exit 0 when clean. Then look at the screenshots: lines, labels and wording are easier to judge by eye.
@@ -80,6 +88,7 @@ They load automatically when Claude Code runs in this folder. To use them everyw
 | `F` | fit width / real size |
 | `Q` | questions |
 | `C` | comment mode |
+| `X` | export menu |
 | `Esc` | close / clear selection |
 
 ## Files
@@ -90,7 +99,8 @@ They load automatically when Claude Code runs in this folder. To use them everyw
 | `flow.js` | Your data (`window.FLOW`) |
 | `validate.js` | Data checks, shared by the page and the CLI |
 | `tools/check.mjs` | `node tools/check.mjs [file]` · data rules, no browser |
-| `tools/audit.mjs` | `node tools/audit.mjs [folder] [--shots dir] [--json]` · headless check + layout + self test |
+| `tools/audit.mjs` | `node tools/audit.mjs [folder] [--shots dir] [--json]` · headless check + layout + self test + export check |
+| `tools/export.mjs` | `node tools/export.mjs [folder] [--out dir] [--formats svg,png,html] [--mode m] [--scen s] [--step n] [--ghost] [--theme light\|dark]` |
 | `.claude/` | Claude Code skill (`flow-motion`) and reviewer agent (`flow-motion-auditor`) |
 | `AGENTS.md` | Guide for AI agents: schema, rules, verification |
 

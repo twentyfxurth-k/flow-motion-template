@@ -15,7 +15,7 @@ You review a Flow Motion page. You do not fix anything. You report what is wrong
 ## Steps
 
 1. `node <template>/tools/check.mjs <folder>/flow.js` → record errors and warnings.
-2. `node <template>/tools/audit.mjs <folder> --shots <tmpdir>` → record layout issues, self-test runs, JS errors, screenshot paths.
+2. `node <template>/tools/audit.mjs <folder> --shots <tmpdir>` → record layout issues, self-test runs, JS errors, export check (svg / png / html sizes), screenshot paths.
 3. Open **every** screenshot with Read. Go through the checklist:
    - lines horizontal / vertical and easy to follow; arrows end on the intended box
    - no label or tag touching another label, tag, box or unrelated line

@@ -47,7 +47,7 @@ window.FLOW = {
     { a: 'c_post', b: 'a_stock', modes: ['before'], via: [[340, 220], [340, 380]] },
     { a: 'c_post', b: 'a_key', label: 'Idempotency-Key', modes: ['after'] },
     { a: 'a_key', b: 'a_replay', label: 'yes', modes: ['after'] },
-    { a: 'a_replay', b: 'c_ok', label: 'same receipt', lt: 0.25, modes: ['after'], via: [[780, 45], [40, 45], [40, 830]] },
+    { a: 'a_replay', b: 'c_ok', label: 'same receipt', lt: 0.12, modes: ['after'], via: [[780, 45], [40, 45], [40, 830]] },
     { a: 'a_key', b: 'a_stock', label: 'no', modes: ['after'] },
     { a: 'a_stock', b: 'a_fail', label: 'no' },
     { a: 'a_fail', b: 'c_err', via: [[780, 445], [165, 445]] },

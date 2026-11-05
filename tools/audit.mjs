@@ -6,6 +6,7 @@
  *   1. data check   (validate.js)          → errors / warnings
  *   2. layout audit (engine, every mode)   → overlaps, lines through boxes, labels on lines, text overflow
  *   3. self test    (every scenario×mode)  → JS errors, steps that did not run
+ *   4. export       (SVG / PNG / HTML)     → each one builds and is not empty
  * --shots <outdir>  also saves one chart-only screenshot per mode (<outdir>/<mode>.png) for a visual review.
  * Exit code: 0 = clean, 1 = issues found, 2 = could not run (no Chrome, bad path).
  * Chrome: set CHROME=/path/to/chrome, otherwise common install paths are tried.
@@ -58,7 +59,7 @@ if (sm) { try { self = JSON.parse(unesc(sm[1])); } catch { self = null; } }
 const report = {
   page, check: attr('data-check') || 'missing', errors, warnings,
   audit: Number(attr('data-audit') ?? NaN), layout,
-  selftest: self ? { ok: self.ok, errors: self.errors, incomplete: self.runs.filter(r => r.reached !== r.steps), runs: self.runs.length } : null,
+  selftest: self ? { ok: self.ok, errors: self.errors, incomplete: self.runs.filter(r => r.reached !== r.steps), runs: self.runs.length, exports: self.exports || null } : null,
   shots: [],
 };
 
@@ -85,8 +86,10 @@ else {
     console.log(`self   ${t.ok ? '✔' : '✖'} ${t.runs} run(s) · ${t.errors.length} JS error(s) · ${t.incomplete.length} incomplete`);
     t.errors.forEach(e => console.log('   ✖ ' + e));
     t.incomplete.forEach(r => console.log(`   ✖ ${r.mode}/${r.scen}: reached ${r.reached} of ${r.steps} steps`));
+    const x = t.exports;
+    console.log(x ? `export ${x.svg && x.png && x.html ? '✔' : '✖'} svg ${Math.round((x.svg || 0) / 1024)} KB · png ${Math.round((x.png || 0) / 1024)} KB · html ${Math.round((x.html || 0) / 1024)} KB` : 'export ✖ not checked (old index.html?)');
   }
   report.shots.forEach(s => console.log('shot   ' + s));
 }
-const clean = report.check === 'ok' && !warnings.length && report.audit === 0 && report.selftest && report.selftest.ok;
+const clean = report.check === 'ok' && !warnings.length && report.audit === 0 && report.selftest && report.selftest.ok && !!report.selftest.exports;
 process.exit(clean ? 0 : 1);

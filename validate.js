@@ -2,7 +2,7 @@
  * Works in the browser (window.flowCheck) and in Node (require('./validate.js').flowCheck).
  * Returns { errors: string[], warnings: string[] }. The page refuses nothing; it shows the list.
  */
-(function (root) {
+(function flowValidate(root) {
   'use strict';
   const NODE_TYPES = ['rect', 'term', 'dec', 'db', 'task', 'note'];
   const TONES = ['', 'ok', 'good', 'bad', 'warn', 'new', 'chg', 'info'];
@@ -224,5 +224,5 @@
 
   const api = { flowCheck, resolveSteps };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  else { root.flowCheck = flowCheck; root.flowResolveSteps = resolveSteps; }
+  else { root.flowCheck = flowCheck; root.flowResolveSteps = resolveSteps; root.flowValidateSrc = flowValidate.toString(); /* lets the page export itself as one HTML file */ }
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -11,7 +11,7 @@ Template repo: <https://github.com/twentyfxurth-k/flow-motion-template>
 
 - `index.html` engine (generic, do not put flow data here)
 - `flow.js` all flow data (`window.FLOW = {...}`)
-- `validate.js` data rules · `tools/check.mjs` CLI check · `tools/audit.mjs` full headless audit
+- `validate.js` data rules · `tools/check.mjs` CLI check · `tools/audit.mjs` full headless audit · `tools/export.mjs` SVG / PNG / one-file HTML
 - `AGENTS.md` full schema, layout rules, error table · read it before writing `flow.js`
 
 ## 1. Set up
@@ -51,6 +51,7 @@ Fix, re-run, repeat until the scripts are clean **and** the review has no findin
 
 - Tell the user what was modelled, what came from code (with file:line) and what was assumed.
 - Mention anything the audit cannot judge (readability of dense areas, wording).
+- Files to share: `node <template>/tools/export.mjs <dir> --out <dir> [--mode m --scen s --step n] [--formats png]` → SVG / PNG of that moment, or one HTML file that plays offline (no folder to zip). Same as the `⬇ Export` button. Exports carry the flow data: same privacy rules as `flow.js`.
 - Deep links for sharing a moment: `index.html#mode=<id>&scen=<id>&step=<n>&sel=<nodeId>`. Chart only: `#view=chart`.
 
 ## Known problems and fixes

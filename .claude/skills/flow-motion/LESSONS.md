@@ -22,6 +22,10 @@ Each entry: what the user saw → cause → fix. "Engine" fixes are already in `
 | Play stopped after the first animated step (headless, background tab) | `requestAnimationFrame` is paused there | **Engine:** `frame()` = rAF with a 50ms timer fallback. |
 | Stepping scrolled the whole page | `scrollIntoView` on the step list item | **Engine:** scroll only the list container. |
 | Esc did nothing in some cases | `keydown` from `document` has no `closest()` | **Engine:** guard `ev.target.closest`. |
+| Exported SVG / PNG showed every box bright although the page dimmed them | Opacity fades with a CSS transition; the export read the style mid-fade | **Engine:** export adds `svg.fm-snap` (transitions off) before reading computed styles. |
+| Page went blank after adding the HTML export | A literal `</script>` inside the inline engine script closed the tag early | **Engine:** write `<\/script>` in JS strings inside HTML. Syntax-check the extracted script with `node --check`. |
+| `--dump-dom` parser read a code comment instead of the result | The engine's own source (in the DOM) contained the marker `<pre id="…">` | Never put a marker the tools grep for inside a comment or string of the page. |
+| A label sat on the lane title, audit said 0 | No rule for lane titles | **Engine:** audit rule "label / box / tag covers lane title". |
 
 ## Content accuracy (the expensive mistakes)
 

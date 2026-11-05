@@ -157,12 +157,12 @@ window.FLOW = {
 
 1. `node tools/check.mjs` → must print `✔ OK`. Exit code 1 = errors.
    Then `node tools/audit.mjs [folder] [--shots <dir>]` → runs the page headless once and reports data check, layout audit
-   (every mode) and a self test (every scenario × mode played to the end, JS errors). Exit 0 = clean. `--shots` saves one
+   (every mode) and a self test (every scenario × mode played to the end, JS errors, SVG / PNG / HTML export builds). Exit 0 = clean. `--shots` saves one
    chart-only screenshot per mode — **open them and look**; the scripts only catch what they have rules for.
    Claude Code users: the `flow-motion` skill and the `flow-motion-auditor` agent in `.claude/` wrap this loop.
 2. Open `index.html`. A red box at the top lists data errors; the console prints them as `[flow] …`.
    A yellow box lists **layout issues** found by the built-in audit, for every mode: text wider than its box, boxes or tags that overlap,
-   lines that pass through a box or tag, labels that cover a box, a tag, another label or another line, and two lines drawn on top of each other.
+   lines that pass through a box or tag, labels that cover a box, a tag, another label, another line or a lane title, and two lines drawn on top of each other.
    With `ghost: 'faint'` it also reports lines and labels that cross the faint boxes of other modes. **Get it to 0 before you hand the page over.**
 3. Headless check (optional), with any Chromium-based browser:
    ```sh
@@ -178,8 +178,9 @@ window.FLOW = {
    chrome --headless=new --disable-gpu --virtual-time-budget=5000 --dump-dom "file://$PWD/index.html" | grep -o 'data-audit="[0-9]*"'
    ```
    Hash options: `#selftest=1` plays everything and writes `<pre id="flow-selftest">` + `<html data-selftest="ok|fail">`;
-   `#view=chart` shows only the chart at real size (for screenshots).
-4. In the page, `window.FLOW_CHECK` holds `{errors, warnings}`, `window.FLOW_AUDIT` holds the layout issues, and `window.flowMotion` exposes `audit(modeId)`, `setMode(id)`, `setScen(id)`, `jump(n)`, `stepsOf(scenId, modeId)`, `state`.
+   `#view=chart` shows only the chart at real size (for screenshots);
+   `#export=svg,png,html` (+ `&ghost=1`) writes the exports as JSON into a hidden `pre#flow-export` — `node tools/export.mjs` wraps this and saves the files.
+4. In the page, `window.FLOW_CHECK` holds `{errors, warnings}`, `window.FLOW_AUDIT` holds the layout issues, and `window.flowMotion` exposes `audit(modeId)`, `exportSvg({ghost, tokens})`, `exportPng(opt, scale)` (Promise of Blob), `exportHtml()`, `setMode(id)`, `setScen(id)`, `jump(n)`, `stepsOf(scenId, modeId)`, `state`.
 
 ## Common errors
 
@@ -194,6 +195,8 @@ window.FLOW = {
 | `text overflows box` | Widen the box (`w`) or shorten `t` / `s`. Diamonds only use ~60% of their width for text. |
 | `edge … passes through box` | Add or move `via` points so the line goes around, or move the box. |
 | `label of … sits on edge` / `overlaps box` | Move the label with `lt`, move the crossing line, or drop the label. |
+| `label of … covers lane title` | Move the label with `lt`, or move the line away from the top of the lane. |
+| `export: HTML file is not self-contained` | `index.html` must load `validate.js` and `flow.js` with plain `<script src="…">` tags, and `validate.js` must set `flowValidateSrc`. |
 | `passes through faint box (other mode)` | Re-route, or set `ghost: 'hide'` if the modes share the same space. |
 
 ## Prompts users can give you

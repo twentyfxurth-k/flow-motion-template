@@ -100,6 +100,7 @@ ol#log li.fo{opacity:.2}
 .nd .s{font-size:10.5px;fill:var(--muted)}
 .nd.hot .sh{stroke:var(--accent);stroke-width:3}
 .nd.ghost{opacity:.1;pointer-events:none}
+svg.fm-snap,svg.fm-snap *{transition:none!important;animation:none!important}
 svg[data-ghost="hide"] .ghost{display:none}
 /* #view=chart : only the chart, real size (for screenshots / visual audit) */
 body.view-chart .wrap{max-width:none;padding:0}
@@ -133,6 +134,12 @@ svg[data-sel] .ed:not(.sel):not(.ghost){opacity:.12}
 svg[data-focus] .tok:not(.fo),svg[data-focus] .trail:not(.fo){opacity:.12}
 .pin{cursor:pointer} .pin circle{stroke:#fff;stroke-width:2} .pin text{font-size:10px;font-weight:800;fill:#fff;text-anchor:middle;dominant-baseline:central}
 /* overlays */
+/* export menu */
+.exw{position:relative;display:inline-block}
+.exm{display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:20;flex-direction:column;gap:8px;width:250px;max-width:calc(100vw - 32px);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.exm.on{display:flex}
+.exm .row{display:flex;gap:6px;flex-wrap:wrap}
+.exm label{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--muted)}
 #tip{position:fixed;z-index:30;display:none;max-width:340px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 11px;font-size:12.5px;box-shadow:0 8px 24px rgba(0,0,0,.18);pointer-events:none}
 #tip b{display:block;font-size:13px}
 .drawer{position:fixed;top:0;right:0;bottom:0;width:min(420px,100%);z-index:25;background:var(--card);border-left:1px solid var(--line);padding:16px;overflow:auto;transform:translateX(100%);transition:transform .2s;box-shadow:-8px 0 24px rgba(0,0,0,.15)}
@@ -164,7 +171,7 @@ svg[data-focus] .tok:not(.fo),svg[data-focus] .trail:not(.fo){opacity:.12}
     <h1 id="ttl">Flow Motion</h1>
     <div id="dsc" class="muted"></div>
     <div class="muted small" style="margin-top:4px">Hover a box for details · click a box to see its links · click a step to jump ·
-      <kbd>Space</kbd> play/pause · <kbd>→</kbd> step · <kbd>←</kbd> back · <kbd>R</kbd> reset · <kbd>M</kbd> next mode · <kbd>1</kbd>–<kbd>9</kbd> scenario · <kbd>P</kbd> path only · <kbd>F</kbd> fit · <kbd>Q</kbd> questions · <kbd>C</kbd> comment · <kbd>Esc</kbd> close</div>
+      <kbd>Space</kbd> play/pause · <kbd>→</kbd> step · <kbd>←</kbd> back · <kbd>R</kbd> reset · <kbd>M</kbd> next mode · <kbd>1</kbd>–<kbd>9</kbd> scenario · <kbd>P</kbd> path only · <kbd>F</kbd> fit · <kbd>Q</kbd> questions · <kbd>C</kbd> comment · <kbd>X</kbd> export · <kbd>Esc</kbd> close</div>
   </header>
   <div id="check"></div>
 
@@ -186,6 +193,13 @@ svg[data-focus] .tok:not(.fo),svg[data-focus] .trail:not(.fo){opacity:.12}
     <button id="bCm" title="Click the chart to pin a comment (C)">💬 Comment</button>
     <button id="bCl">🗒 Comments (0)</button>
     <button id="bTheme" title="Theme: auto / light / dark">◐ Auto</button>
+    <span class="exw"><button id="bEx" title="Export the chart as you see it (X)">⬇ Export</button>
+      <div class="exm" id="exMenu">
+        <div class="row"><button id="exSvg">SVG</button><button id="exPng">PNG</button><button id="exHtml" title="One file: page + data, plays offline">HTML file</button></div>
+        <label><input type="checkbox" id="exGhost"> faint boxes of other modes</label>
+        <label><input type="checkbox" id="exTok" checked> tokens at this step</label>
+        <div class="muted small">SVG / PNG = current mode, step, theme and Path only. HTML = the whole page.</div>
+      </div></span>
   </div></div>
 
   <main>
@@ -223,9 +237,10 @@ svg[data-focus] .tok:not(.fo),svg[data-focus] .trail:not(.fo){opacity:.12}
 
 <script src="validate.js"></script>
 <script src="flow.js"></script>
-<script>
+<script id="fm-engine">
 (function () {
 'use strict';
+const PAGE_SRC = '<!doctype html>\n' + document.documentElement.outerHTML;   /* untouched page, used by the HTML export */
 const $ = id => document.getElementById(id);
 const F = window.FLOW;
 if (!F) { $('check').innerHTML = '<div class="box"><b>flow.js did not load.</b> It must set <code>window.FLOW = {...}</code>. Run <code>node tools/check.mjs</code>.</div>'; return; }
@@ -639,7 +654,7 @@ function writeHash() {
   const p = new URLSearchParams(); p.set('mode', mode); p.set('scen', scen); if (idx) p.set('step', idx); if (sel) p.set('sel', sel);
   try { history.replaceState(null, '', '#' + p.toString()); } catch (e) {}
 }
-function readHash() { const p = new URLSearchParams(location.hash.slice(1)); return { mode: p.get('mode'), scen: p.get('scen'), step: +p.get('step') || 0, sel: p.get('sel') || '', selftest: p.get('selftest') === '1', view: p.get('view') || '' }; }
+function readHash() { const p = new URLSearchParams(location.hash.slice(1)); return { mode: p.get('mode'), scen: p.get('scen'), step: +p.get('step') || 0, sel: p.get('sel') || '', selftest: p.get('selftest') === '1', view: p.get('view') || '', export: p.get('export') || '', ghost: p.get('ghost') === '1' }; }
 
 /* ---------- fit / theme ---------- */
 let real = store.get('real', false);
@@ -727,8 +742,59 @@ function cOpen(i, x, y) {
 function cClose(dropEmpty) { const i = CM.cur; $('cEd').classList.remove('on'); CM.cur = null; if (dropEmpty && i != null && CM.items[i] && !CM.items[i].text) { CM.items.splice(i, 1); } renderPins(); }
 function cSetMode(on) { CM.on = on; document.body.classList.toggle('cmon', on); $('bCm').classList.toggle('on', on); $('bCm').textContent = on ? '💬 Comment: on (click the chart)' : '💬 Comment'; }
 function nearNode(x, y) { let best = '', bd = 1e9; for (const id in N) { const n = N[id]; if (!vis(n, mode)) continue; const d = Math.hypot(n.x - x, n.y - y); if (d < bd && d < Math.max(n.w, n.h)) { bd = d; best = id; } } return best; }
-function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
+function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(text instanceof Blob ? text : new Blob([text], { type })); a.download = name; document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
 function stamp() { return new Date().toISOString().slice(0, 16).replace(/[-:T]/g, ''); }
+
+/* ---------- export: SVG / PNG = what is on screen, HTML = page + data in one file ---------- */
+const STYLE_PROPS = ['fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-opacity', 'stroke-linecap', 'stroke-linejoin', 'opacity', 'font-family', 'font-size', 'font-weight', 'text-anchor', 'dominant-baseline', 'marker-start', 'marker-end'];
+function exportSvg(opt) {
+  const o = Object.assign({ ghost: false, tokens: true }, opt), live = $('svg');
+  live.classList.add('fm-snap'); void live.getBoundingClientRect();   /* finish fades now, so dimmed boxes export dimmed */
+  const out = live.cloneNode(true);
+  const L = [live, ...live.querySelectorAll('*')], C = [out, ...out.querySelectorAll('*')], drop = [];
+  L.forEach((le, i) => {
+    const ce = C[i], cs = getComputedStyle(le);
+    if (cs.display === 'none' || cs.visibility === 'hidden') { drop.push(ce); return; }
+    if (le.classList && le.classList.contains('ghost') && !o.ghost) { drop.push(ce); return; }
+    ce.removeAttribute('class'); ce.removeAttribute('style');
+    if (i === 0) return;
+    ce.setAttribute('style', STYLE_PROPS.map(k => { const v = cs.getPropertyValue(k); return v && v !== 'none' && v !== 'normal' ? `${k}:${v}` : (k.startsWith('marker') ? '' : `${k}:${v}`); }).filter(Boolean).join(';'));
+  });
+  live.classList.remove('fm-snap');
+  drop.forEach(e => e.remove());
+  out.querySelector('#gPins')?.remove();
+  if (!o.tokens) { out.querySelector('#gToks')?.remove(); out.querySelector('#gTrails')?.remove(); }
+  const css = getComputedStyle(document.documentElement), bg = css.getPropertyValue('--card').trim() || '#fff';
+  out.setAttribute('xmlns', NSV); out.setAttribute('width', VB[2]); out.setAttribute('height', VB[3]);
+  out.setAttribute('style', `font-family:${getComputedStyle(document.body).fontFamily}`);
+  const r = document.createElementNS(NSV, 'rect'); [['x', VB[0]], ['y', VB[1]], ['width', VB[2]], ['height', VB[3]], ['fill', bg]].forEach(([k, v]) => r.setAttribute(k, v));
+  out.insertBefore(r, out.querySelector('defs')?.nextSibling || out.firstChild);
+  const t = document.createElementNS(NSV, 'title'); t.textContent = `${F.title || F.id || 'flow'} · ${mode} · ${scen} · step ${idx}`; out.insertBefore(t, out.firstChild);
+  return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(out);
+}
+function exportPng(opt, scale) {
+  const svg = exportSvg(opt), k = scale || 2;
+  return new Promise((ok, no) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = Math.round(VB[2] * k); c.height = Math.round(VB[3] * k);
+      const g = c.getContext('2d'); g.scale(k, k); g.drawImage(img, 0, 0, VB[2], VB[3]);
+      c.toBlob(b => b ? ok(b) : no(new Error('PNG: empty canvas')), 'image/png');
+    };
+    img.onerror = () => no(new Error('PNG: SVG did not load as an image'));
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+function exportHtml() {
+  const safe = t => t.replace(/<\/(script)/gi, '<\\/$1');
+  const vsrc = window.flowValidateSrc ? `(${window.flowValidateSrc})(window);` : '';
+  const data = JSON.stringify(F, null, 1);
+  return PAGE_SRC
+    .replace(/<script[^>]*(?:src="validate\.js"|id="fm-validate")[^>]*>[\s\S]*?<\/script>/, () => `<script id="fm-validate">${safe(vsrc)}<\/script>`)
+    .replace(/<script[^>]*(?:src="flow\.js"|id="fm-flow")[^>]*>[\s\S]*?<\/script>/, () => `<script id="fm-flow">window.FLOW = ${safe(data)};<\/script>`);
+}
+const exOpt = () => ({ ghost: $('exGhost').checked, tokens: $('exTok').checked });
+const exName = ext => `${F.id || 'flow'}_${mode}_${scen}_s${idx}_${stamp()}.${ext}`;
 
 /* ---------- wiring ---------- */
 function wire() {
@@ -740,6 +806,11 @@ function wire() {
   $('bQ').onclick = () => $('drQ').classList.toggle('on'); $('qClose').onclick = () => $('drQ').classList.remove('on');
   $('bCl').onclick = () => $('drC').classList.toggle('on'); $('cClose').onclick = () => $('drC').classList.remove('on');
   $('bCm').onclick = () => cSetMode(!CM.on);
+  $('bEx').onclick = ev => { ev.stopPropagation(); $('exMenu').classList.toggle('on'); };
+  document.addEventListener('click', ev => { if (!ev.target.closest('.exw')) $('exMenu').classList.remove('on'); });
+  $('exSvg').onclick = () => download(exName('svg'), exportSvg(exOpt()), 'image/svg+xml');
+  $('exPng').onclick = () => exportPng(exOpt()).then(b => download(exName('png'), b)).catch(e => alert(e.message));
+  $('exHtml').onclick = () => download(`${F.id || 'flow'}_${stamp()}.html`, exportHtml(), 'text/html');
   $('dlg').onclick = ev => { if (ev.target === $('dlg')) $('dlg').classList.remove('on'); };
   for (const k in CTYPES) { const o = h('option', '', CTYPES[k][0] + ' ' + CTYPES[k][1]); o.value = k; $('cType').append(o); }
   $('cSave').onclick = () => { const it = CM.items[CM.cur]; if (it) { it.type = $('cType').value; it.text = $('cTxt').value.trim(); it.at = new Date().toISOString(); } cClose(true); };
@@ -770,7 +841,7 @@ function wire() {
     if (tg && tg.closest && tg.closest('input,textarea,select')) { if (ev.key === 'Escape') tg.blur(); return; }
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
     const k = ev.key;
-    if (k === 'Escape') { $('dlg').classList.remove('on'); $('drQ').classList.remove('on'); $('drC').classList.remove('on'); if ($('cEd').classList.contains('on')) cClose(true); if (CM.on) cSetMode(false); if (sel) selectNode(''); return; }
+    if (k === 'Escape') { $('exMenu').classList.remove('on'); $('dlg').classList.remove('on'); $('drQ').classList.remove('on'); $('drC').classList.remove('on'); if ($('cEd').classList.contains('on')) cClose(true); if (CM.on) cSetMode(false); if (sel) selectNode(''); return; }
     if (k === ' ') { ev.preventDefault(); play(); }
     else if (k === 'ArrowRight') { ev.preventDefault(); step(); }
     else if (k === 'ArrowLeft') { ev.preventDefault(); jump(Math.max(0, idx - 1)); }
@@ -779,6 +850,7 @@ function wire() {
     else if (k === 'f' || k === 'F') $('bFit').click();
     else if (k === 'q' || k === 'Q') $('bQ').click();
     else if (k === 'c' || k === 'C') $('bCm').click();
+    else if (k === 'x' || k === 'X') $('bEx').click();
     else if (k === 'm' || k === 'M') setMode(MODES[(MODES.findIndex(m => m.id === mode) + 1) % MODES.length].id);
     else if (/^[1-9]$/.test(k)) { const s = SC[+k - 1]; if (s) setScen(s.id); }
   });
@@ -805,7 +877,8 @@ sync();
   if (H.selftest) await selfTest();
   if (H.step) await jump(H.step);
   if (H.sel) selectNode(H.sel);
-  hashReady = !H.selftest; writeHash();
+  if (H.export) await exportToDom(H.export.split(','), { ghost: H.ghost, tokens: true });
+  hashReady = !H.selftest && !H.export; writeHash();
   window.FLOW_READY = true;
   document.documentElement.dataset.ready = '1';
 })();
@@ -823,13 +896,34 @@ async function selfTest() {
     const state = {}; for (const k in st.v) state[k] = st.v[k].v;
     runs.push({ mode: m.id, scen: sc.id, steps: list.length, reached: idx, errors: errs.length - before, state });
   }
+  setMode(MODES[0].id); if (SC[0]) setScen(SC[0].id);
+  const exports = {};
+  try {
+    const sv = exportSvg({}); exports.svg = sv.length;
+    if (!/<svg[\s>]/.test(sv) || !sv.includes('<path') || sv.length < 1000) errs.push('export: SVG looks empty');
+    const ht = exportHtml(); exports.html = ht.length;
+    if (/src="(flow|validate)\.js"/.test(ht) || !ht.includes('window.FLOW =') || !ht.includes('id="fm-engine"')) errs.push('export: HTML file is not self-contained');
+    if (!window.flowValidateSrc) errs.push('export: validate.js does not expose flowValidateSrc (HTML export would skip the data check)');
+    const pb = await exportPng({}, 1); exports.png = pb.size;
+    if (pb.size < 1000) errs.push('export: PNG looks empty');
+  } catch (e) { errs.push('export: ' + e.message); }
   console.error = ce; window.removeEventListener('error', onErr);
   const bad = errs.length || runs.some(r => r.reached !== r.steps);
-  const out = { ok: !bad, errors: errs, runs };
+  const out = { ok: !bad, errors: errs, runs, exports };
   window.FLOW_SELFTEST = out;
   document.documentElement.dataset.selftest = bad ? 'fail' : 'ok';
   const pre = document.createElement('pre'); pre.id = 'flow-selftest'; pre.textContent = JSON.stringify(out); document.body.appendChild(pre);
-  setMode(MODES[0].id); if (SC[0]) setScen(SC[0].id);
+}
+/* ---------- #export=svg,png,html : write the exports into a hidden pre#flow-export (read by tools/export.mjs) ---------- */
+async function exportToDom(kinds, opt) {
+  const out = {};
+  try {
+    if (kinds.includes('svg')) out.svg = exportSvg(opt);
+    if (kinds.includes('html')) out.html = exportHtml();
+    if (kinds.includes('png')) { const b = await exportPng(opt, 2); out.png = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); }); }
+  } catch (e) { out.error = e.message; }
+  out.name = `${F.id || 'flow'}_${mode}_${scen}_s${idx}`;
+  const pre = document.createElement('pre'); pre.id = 'flow-export'; pre.hidden = true; pre.textContent = JSON.stringify(out); document.body.appendChild(pre);
 }
 /* ---------- layout audit: what overlaps what, per mode (only what is visible in that mode) ---------- */
 function audit(m) {
@@ -858,6 +952,12 @@ function audit(m) {
     edges.forEach(k => { segs(k).forEach(s => ghosts.forEach(id => { if (hits(s, box(N[id]), 3)) out.push(`edge ${k} passes through faint box "${id}" (other mode)`); }));
       if (EL[k].lb) ghosts.forEach(id => { if (over(EL[k].lb, box(N[id]), 0)) out.push(`label of ${k} overlaps faint box "${id}" (other mode)`); }); });
   }
+  /* lane titles (drawn text, so measure it) */
+  [...$('gLanes').querySelectorAll('text')].forEach(t => {
+    const b = t.getBBox(), R = [b.x - 2, b.y - 2, b.x + b.width + 2, b.y + b.height + 2], name = t.textContent;
+    nodes.forEach(id => { if (over(R, box(N[id]), 0)) out.push(`box "${id}" covers lane title "${name}"`); const tg = NL[id].tagR; if (tg && over(R, tg, 0)) out.push(`tag of "${id}" covers lane title "${name}"`); });
+    edges.forEach(k => { if (EL[k].lb && over(R, EL[k].lb, 0)) out.push(`label of ${k} covers lane title "${name}"`); });
+  });
   /* labels */
   const labs = edges.filter(k => EL[k].lb);
   labs.forEach(k => {
@@ -878,7 +978,7 @@ function audit(m) {
   }
   return [...new Set(out)];
 }
-window.flowMotion = { audit, setMode, setScen, jump, reset, play, step, stepsOf: (id, m) => stepsOf(scObj(id), m || mode), get state() { return st; }, get mode() { return mode; }, get scen() { return scen; }, get idx() { return idx; } };
+window.flowMotion = { audit, exportSvg, exportPng, exportHtml, setMode, setScen, jump, reset, play, step, stepsOf: (id, m) => stepsOf(scObj(id), m || mode), get state() { return st; }, get mode() { return mode; }, get scen() { return scen; }, get idx() { return idx; } };
 })();
 </script>
 </body>
