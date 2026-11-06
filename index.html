@@ -317,11 +317,17 @@ function mdInline(s) { return esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').re
 /* code box: in a fenced block, a line starting with "+ " = new (green), "~ " = changed (amber), anything else = existing */
 function codeBox(p) { return '<pre class="cb"><code>' + p.replace(/\n$/, '').split('\n').map(l => /^\+ /.test(l) ? '<span class="add">' + esc(l.slice(2)) + '</span>' : /^~ /.test(l) ? '<span class="mod">' + esc(l.slice(2)) + '</span>' : esc(l)).join('\n') + '</code></pre>'; }
 /* md: inline `code` / **bold**, plus fenced blocks ```lang\n...\n``` → code box */
-function md(s) { return String(s).split(/```[a-z]*\n?([\s\S]*?)```/).map((p, i) => i % 2 ? codeBox(p) : mdInline(p)).join(''); }
-/* rich text for tips: each " · " part on its own line, code blocks kept whole */
+function md(s) { return String(s).split(/```[\w+-]*\n?([\s\S]*?)```/).map((p, i) => i % 2 ? codeBox(p) : mdInline(p)).join(''); }
+/* split on " · " only outside `inline code` spans */
+function splitDots(p) {
+  const keep = [];
+  const s = p.replace(/`[^`]*`/g, m => '\u0000' + (keep.push(m) - 1) + '\u0000');
+  return s.split(/\s+·\s+/).map(x => x.replace(/\u0000(\d+)\u0000/g, (_, k) => keep[+k]));
+}
+/* rich text for tips (also edge tips and comment-pin text): each " · " part on its own line, code blocks kept whole */
 function rich(s) {
   if (!s) return '';
-  const parts = String(s).split(/(```[\s\S]*?```)/).flatMap((p, i) => i % 2 ? [p] : p.split(/\s+·\s+/)).map(x => x.trim()).filter(Boolean);
+  const parts = String(s).split(/(```[\s\S]*?```)/).flatMap((p, i) => i % 2 ? [p] : splitDots(p)).map(x => x.trim()).filter(Boolean);
   const one = parts.length === 1;
   return '<div class="rt">' + parts.map(x => x.startsWith('```') ? md(x) : '<div class="ln' + (one ? ' one' : '') + '"><span>' + md(x) + '</span></div>').join('') + '</div>';
 }
@@ -966,6 +972,12 @@ async function selfTest() {
     }
     const cb = document.createElement('div'); cb.innerHTML = md('```\n+ new\n~ changed\nold\n```');
     if (!cb.querySelector('pre.cb .add') || !cb.querySelector('pre.cb .mod')) errs.push('code box: "+ " / "~ " lines did not render');
+    const fb = document.createElement('div'); fb.innerHTML = md('```JSON\n{"a":1}\n```');
+    const fc = fb.querySelector('pre.cb code');
+    if (!fc || fc.textContent.startsWith('JSON')) errs.push('code fence: language token "JSON" leaked into the code box');
+    const rb = document.createElement('div'); rb.innerHTML = rich('a · `x · y` · b');
+    const rl = rb.querySelectorAll('.ln'), rc = rb.querySelectorAll('code');
+    if (rl.length !== 3 || rc.length !== 1 || rc[0].textContent !== 'x · y') errs.push('rich: " · " inside inline code was split (' + rl.length + ' lines)');
   } catch (e) { errs.push('rich detail: ' + e.message); }
   const exports = {};
   try {

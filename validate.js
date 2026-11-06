@@ -24,7 +24,7 @@
       if (typeof txt !== 'string' || !txt.includes('```')) return;
       const n = txt.split('```').length - 1;
       if (n % 2) return warn(`${where}: odd number of \`\`\` (unclosed code fence)`);
-      txt.split(/```[a-z]*\n?/).forEach((p, i) => {
+      txt.split(/```[\w+-]*\n?/).forEach((p, i) => {
         if (i % 2) p.split('\n').forEach(l => { const len = l.replace(/^[+~] /, '').length; if (len > 60) warn(`${where}: code line over 60 chars (${len}) wraps in the card: "${l.slice(0, 30)}..."`); });
       });
     };

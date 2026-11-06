@@ -35,6 +35,8 @@ Each entry: what the user saw → cause → fix. "Engine" fixes are already in `
 | The detail card sat below other cards and users did not find it | Card was after the State and tables cards | **Engine:** card moved to the top of the right panel, with an accent border and a header with a `✕` button. |
 | The card repeated `tip` and `detail` and became long | Both were printed | **Engine:** the card shows `detail`, and falls back to `tip` only when there is none. |
 | Code boxes with end-of-line comments wrapped badly in the narrow card | Long lines in a narrow column | **Data:** comments on their own line, code lines ≤ 60 chars. **Validator:** warns on longer lines. |
+| A code box started with `JSON` / `c++` as its first line | Fence language pattern was `[a-z]*` (lowercase only) | **Engine + validate.js:** `[\w+-]*`; self test renders a ```` ```JSON ```` block. |
+| `` `x · y` `` in a tip became two broken lines | `rich()` split on ` · ` before inline code was parsed | **Engine:** split only outside backtick spans; self test checks `a · `x · y` · b` gives 3 lines. |
 | Users could not tell new code from existing code | No marker | **Engine:** `+ ` (green) / `~ ` (amber) diff markers in code boxes. |
 | Headless Chrome would not make the window narrower than about 500 px | Chrome minimum window width | Check phone width by rendering the page inside a 390 px wide iframe. |
 | `scrollIntoView` in a headless screenshot produced a blank image | Scrolling in headless capture | Use `#view=chart` and do not scroll. |
