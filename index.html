@@ -84,9 +84,14 @@ ol#log li{display:flex;gap:6px;align-items:flex-start;padding:3px 4px;border-rad
 ol#log li .n{flex:none;width:20px;text-align:right;color:var(--muted)}
 ol#log li.done{opacity:.85} ol#log li.cur{opacity:1;background:var(--accent-soft);font-weight:600}
 ol#log li.fo{opacity:.2}
+#selCard{border:2px solid var(--accent)}
+#selCard .selhd{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11.5px;color:var(--accent);font-weight:600;margin-bottom:4px}
 #selCard ul{margin:4px 0 0;padding-left:18px;font-size:12.5px}
+#selCard li:has(>pre.cb:only-child){list-style:none;margin-left:-18px}
 #selCard .nb{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
 #selCard .nb button{font-size:12px;padding:2px 8px}
+#selCard .ww{display:grid;gap:6px;margin:6px 0 8px;padding:8px 10px;border-radius:8px;background:var(--accent-soft);font-size:12.5px}
+#selCard .ww .wk{display:block;font-size:11px;font-weight:700;color:var(--accent)}
 /* svg */
 .lane{fill:var(--lane);stroke:var(--line)}
 .lt{fill:var(--muted);font-size:13px;font-weight:600}
@@ -140,8 +145,21 @@ svg[data-focus] .tok:not(.fo),svg[data-focus] .trail:not(.fo){opacity:.12}
 .exm.on{display:flex}
 .exm .row{display:flex;gap:6px;flex-wrap:wrap}
 .exm label{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--muted)}
-#tip{position:fixed;z-index:30;display:none;max-width:340px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 11px;font-size:12.5px;box-shadow:0 8px 24px rgba(0,0,0,.18);pointer-events:none}
-#tip b{display:block;font-size:13px}
+#tip{position:fixed;z-index:30;display:none;max-width:min(460px,calc(100vw - 24px));max-height:calc(100vh - 16px);overflow:hidden;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:12.5px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.18);pointer-events:none}
+#tip .tt{display:block;font-size:13.5px;font-weight:700;margin-bottom:2px}
+#tip .sub{color:var(--muted);margin-bottom:6px}
+#tip .hint{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);color:var(--muted);font-size:11.5px}
+.rt .ln{display:flex;gap:6px;margin:2px 0}
+.rt .ln::before{content:'•';color:var(--muted);flex:none}
+.rt .ln.one::before{content:none}
+.rt code,#selCard code{font-size:11.5px;overflow-wrap:anywhere}
+pre.cb{margin:6px 0;padding:8px 10px;background:var(--lane);border:1px solid var(--line);border-radius:8px;font:11.5px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+pre.cb code{background:none;border:0;padding:0;font:inherit}
+pre.cb .add,pre.cb .mod{display:inline-block;min-width:100%;margin:0 -10px;padding:0 10px 0 7px;box-sizing:content-box}
+pre.cb .add{background:color-mix(in srgb,var(--ok) 16%,transparent);border-left:3px solid var(--ok)}
+pre.cb .mod{background:color-mix(in srgb,var(--warn) 16%,transparent);border-left:3px solid var(--warn)}
+pre.cb .add::before{content:'+ ';color:var(--ok);font-weight:700}
+pre.cb .mod::before{content:'~ ';color:var(--warn);font-weight:700}
 .drawer{position:fixed;top:0;right:0;bottom:0;width:min(420px,100%);z-index:25;background:var(--card);border-left:1px solid var(--line);padding:16px;overflow:auto;transform:translateX(100%);transition:transform .2s;box-shadow:-8px 0 24px rgba(0,0,0,.15)}
 .drawer.on{transform:none}
 .drawer .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
@@ -210,6 +228,7 @@ svg[data-focus] .tok:not(.fo),svg[data-focus] .trail:not(.fo){opacity:.12}
       </svg>
     </div>
     <aside>
+      <div class="card" id="selCard" hidden></div>
       <div class="card">
         <h3>State</h3>
         <p class="sum" id="sum"></p>
@@ -217,7 +236,6 @@ svg[data-focus] .tok:not(.fo),svg[data-focus] .trail:not(.fo){opacity:.12}
         <div class="stepn">Step <b id="vStep">0 / 0</b></div>
       </div>
       <div id="tables"></div>
-      <div class="card" id="selCard" hidden></div>
       <div class="card"><h3>Steps</h3><ol id="log"></ol></div>
     </aside>
   </main>
@@ -265,7 +283,7 @@ const TK = {};
 (F.tokens || []).forEach((t, i) => { TK[t.k] = Object.assign({ label: t.k, color: PAL[i % PAL.length], desc: t.k }, t, { i }); });
 const SC = F.scenarios || [];
 const vis = (o, m) => !o || !o.modes || o.modes.includes(m);
-/* node with its per-mode overrides (byMode: {modeId: {t, s, tip, detail}}) */
+/* node with its per-mode overrides (byMode: {modeId: {t, s, tip, detail, what, why}}) */
 const nodeIn = (id, m) => N[id] && N[id].byMode && N[id].byMode[m] ? Object.assign({}, N[id], N[id].byMode[m]) : N[id];
 const resolve = window.flowResolveSteps;
 function stepsOf(sc, m) {
@@ -295,7 +313,20 @@ document.documentElement.dataset.check = CHK.errors.length ? 'fail' : 'ok';
 function el(t, a, p) { const e = document.createElementNS(NSV, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; }
 function h(t, c, txt) { const e = document.createElement(t); if (c) e.className = c; if (txt != null) e.textContent = txt; return e; }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
-function md(s) { return esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>'); }
+function mdInline(s) { return esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>'); }
+/* code box: in a fenced block, a line starting with "+ " = new (green), "~ " = changed (amber), anything else = existing */
+function codeBox(p) { return '<pre class="cb"><code>' + p.replace(/\n$/, '').split('\n').map(l => /^\+ /.test(l) ? '<span class="add">' + esc(l.slice(2)) + '</span>' : /^~ /.test(l) ? '<span class="mod">' + esc(l.slice(2)) + '</span>' : esc(l)).join('\n') + '</code></pre>'; }
+/* md: inline `code` / **bold**, plus fenced blocks ```lang\n...\n``` → code box */
+function md(s) { return String(s).split(/```[a-z]*\n?([\s\S]*?)```/).map((p, i) => i % 2 ? codeBox(p) : mdInline(p)).join(''); }
+/* rich text for tips: each " · " part on its own line, code blocks kept whole */
+function rich(s) {
+  if (!s) return '';
+  const parts = String(s).split(/(```[\s\S]*?```)/).flatMap((p, i) => i % 2 ? [p] : p.split(/\s+·\s+/)).map(x => x.trim()).filter(Boolean);
+  const one = parts.length === 1;
+  return '<div class="rt">' + parts.map(x => x.startsWith('```') ? md(x) : '<div class="ln' + (one ? ' one' : '') + '"><span>' + md(x) + '</span></div>').join('') + '</div>';
+}
+/* UI labels (override with FLOW.labels) */
+const LB = Object.assign({ selected: '📌 Selected box', what: 'What it is', why: 'What it solves', clickHint: '👆 Click the box for full details' }, F.labels || {});
 function speed() { return +$('spd').value || 1; }
 function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -410,9 +441,11 @@ function drawStatic() {
       const tx = n.x + w / 2 - tw / 2 - 6, ty2 = n.y - hh / 2 - 2;
       tagR = [tx - tw / 2, ty2 - 9, tx + tw / 2, ty2 + 7];
     }
-    g.addEventListener('mouseenter', ev => { const o = nodeIn(id, mode); showTip(ev, o.t, [o.s, o.tip].filter(Boolean).join(' · ')); });
-    g.addEventListener('mousemove', moveTip); g.addEventListener('mouseleave', hideTip);
-    g.addEventListener('click', ev => { if (CM.on) return; ev.stopPropagation(); selectNode(sel === id ? '' : id); });
+    /* node tooltip sits beside the box (never on top of it) so the box stays visible and clickable */
+    g.addEventListener('mouseenter', () => { clearTimeout(tipT); tipT = setTimeout(() => nodeTip(id), 250); });
+    g.addEventListener('mouseleave', hideTip);
+    g.addEventListener('mousedown', hideTip);
+    g.addEventListener('click', ev => { if (CM.on) return; ev.stopPropagation(); hideTip(); selectNode(sel === id ? '' : id); });
     NL[id] = { g, textW, tagR, tt, ts };
   }
   $('svg').addEventListener('click', () => { if (!CM.on && sel) selectNode(''); });
@@ -420,9 +453,19 @@ function drawStatic() {
 
 /* ---------- tooltip ---------- */
 const tip = $('tip');
-function showTip(ev, t, s) { tip.innerHTML = '<b>' + esc(t || '') + '</b>' + (s ? esc(s) : ''); tip.style.display = 'block'; moveTip(ev); }
+let tipT = 0;
+function showTip(ev, t, s, sub) { tip.innerHTML = '<span class="tt">' + esc(t || '') + '</span>' + (sub ? '<div class="sub">' + md(sub) + '</div>' : '') + rich(s) + (ev ? '' : '<div class="hint">' + esc(LB.clickHint) + '</div>'); tip.style.display = 'block'; if (ev) moveTip(ev); }
+function nodeTip(id) { const o = nodeIn(id, mode); showTip(null, o.t, o.tip, o.s); placeBeside(NL[id].g.getBoundingClientRect()); }
+/* right of the box → left → below → above; clamped to the window */
+function placeBeside(r) {
+  const w = tip.offsetWidth, h = tip.offsetHeight, G = 12, W = innerWidth, H = innerHeight;
+  const cy = Math.max(8, Math.min(r.top, H - h - 8)), cx = Math.max(8, Math.min(r.left, W - w - 8));
+  const opts = [[r.right + G, cy, r.right + G + w <= W - 8], [r.left - G - w, cy, r.left - G - w >= 8], [cx, r.bottom + G, r.bottom + G + h <= H - 8], [cx, r.top - G - h, r.top - G - h >= 8]];
+  const o = opts.find(x => x[2]) || [W - w - 8, 8];
+  tip.style.left = o[0] + 'px'; tip.style.top = o[1] + 'px';
+}
 function moveTip(ev) { const x = Math.min(ev.clientX + 14, innerWidth - tip.offsetWidth - 8), y = Math.min(ev.clientY + 14, innerHeight - tip.offsetHeight - 8); tip.style.left = x + 'px'; tip.style.top = y + 'px'; }
-function hideTip() { tip.style.display = 'none'; }
+function hideTip() { clearTimeout(tipT); tip.style.display = 'none'; }
 
 /* ---------- selection ---------- */
 let sel = '';
@@ -440,9 +483,17 @@ function applySel() {
   const c = $('selCard');
   if (!sel) { c.hidden = true; return; }
   const n = nodeIn(sel, mode); c.hidden = false; c.innerHTML = '';
+  const hd = h('div', 'selhd', LB.selected); const x = h('button', '', '✕'); x.title = 'Close (Esc)'; x.onclick = () => selectNode(''); hd.append(x); c.append(hd);
   c.append(h('h3', '', n.t || sel));
   if (n.s) c.append(h('div', 'muted small', n.s));
-  if (n.tip) c.append(h('div', 'small', n.tip));
+  /* summary first (what / why), then the full detail; tip is the hover summary, shown here only when there is no detail */
+  if (n.what || n.why) {
+    const w = h('div', 'ww');
+    if (n.what) w.insertAdjacentHTML('beforeend', '<div><span class="wk">' + esc(LB.what) + '</span>' + md(n.what) + '</div>');
+    if (n.why) w.insertAdjacentHTML('beforeend', '<div><span class="wk">' + esc(LB.why) + '</span>' + md(n.why) + '</div>');
+    c.append(w);
+  }
+  if (n.tip && !(n.detail && n.detail.length)) { const d = h('div', 'small'); d.innerHTML = rich(n.tip); c.append(d); }
   if (n.detail && n.detail.length) { const ul = h('ul'); n.detail.forEach(x => { const li = h('li'); li.innerHTML = md(x); ul.append(li); }); c.append(ul); }
   if (!vis(n, mode)) c.append(h('div', 'small muted', '(not in this mode)'));
   const box = h('div', 'nb');
@@ -897,6 +948,25 @@ async function selfTest() {
     runs.push({ mode: m.id, scen: sc.id, steps: list.length, reached: idx, errors: errs.length - before, state });
   }
   setMode(MODES[0].id); if (SC[0]) setScen(SC[0].id);
+  /* rich detail: tooltip beside the node, detail card on top, diff markers in code boxes */
+  try {
+    const vn = Object.keys(N).filter(id => vis(N[id], mode) && NL[id]);
+    const tn = vn.find(id => nodeIn(id, mode).tip);
+    if (tn) {
+      nodeTip(tn); const a = tip.getBoundingClientRect(), b = NL[tn].g.getBoundingClientRect(); hideTip();
+      if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) errs.push(`tooltip covers its node "${tn}"`);
+    }
+    const wn = vn.find(id => nodeIn(id, mode).what);
+    if (wn) {
+      selectNode(wn); const c = $('selCard');
+      if (c.hidden || c.offsetParent === null) errs.push('detail card is not visible after selecting a node');
+      else if (c.parentElement.firstElementChild !== c) errs.push('detail card is not the first card in the right panel');
+      if (!c.textContent.includes(nodeIn(wn, mode).what)) errs.push('detail card does not show the "what" text');
+      selectNode('');
+    }
+    const cb = document.createElement('div'); cb.innerHTML = md('```\n+ new\n~ changed\nold\n```');
+    if (!cb.querySelector('pre.cb .add') || !cb.querySelector('pre.cb .mod')) errs.push('code box: "+ " / "~ " lines did not render');
+  } catch (e) { errs.push('rich detail: ' + e.message); }
   const exports = {};
   try {
     const sv = exportSvg({}); exports.svg = sv.length;

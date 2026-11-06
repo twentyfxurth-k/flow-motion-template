@@ -27,6 +27,18 @@ Each entry: what the user saw → cause → fix. "Engine" fixes are already in `
 | `--dump-dom` parser read a code comment instead of the result | The engine's own source (in the DOM) contained the marker `<pre id="…">` | Never put a marker the tools grep for inside a comment or string of the page. |
 | A label sat on the lane title, audit said 0 | No rule for lane titles | **Engine:** audit rule "label / box / tag covers lane title". |
 
+## Tooltips and detail card
+
+| What the user saw | Cause | Fix |
+|---|---|---|
+| The tooltip covered the box, so users could not see what to click | Tooltip followed the mouse, on top of the box | **Engine:** node tooltip opens after 250 ms beside the box (right, left, below, above), not on the mouse. |
+| The detail card sat below other cards and users did not find it | Card was after the State and tables cards | **Engine:** card moved to the top of the right panel, with an accent border and a header with a `✕` button. |
+| The card repeated `tip` and `detail` and became long | Both were printed | **Engine:** the card shows `detail`, and falls back to `tip` only when there is none. |
+| Code boxes with end-of-line comments wrapped badly in the narrow card | Long lines in a narrow column | **Data:** comments on their own line, code lines ≤ 60 chars. **Validator:** warns on longer lines. |
+| Users could not tell new code from existing code | No marker | **Engine:** `+ ` (green) / `~ ` (amber) diff markers in code boxes. |
+| Headless Chrome would not make the window narrower than about 500 px | Chrome minimum window width | Check phone width by rendering the page inside a 390 px wide iframe. |
+| `scrollIntoView` in a headless screenshot produced a blank image | Scrolling in headless capture | Use `#view=chart` and do not scroll. |
+
 ## Content accuracy (the expensive mistakes)
 
 | What happened | Fix |

@@ -19,6 +19,16 @@
       return v;
     };
 
+    /* rich text: unclosed code fences, long code-box lines */
+    const fences = (where, txt) => {
+      if (typeof txt !== 'string' || !txt.includes('```')) return;
+      const n = txt.split('```').length - 1;
+      if (n % 2) return warn(`${where}: odd number of \`\`\` (unclosed code fence)`);
+      txt.split(/```[a-z]*\n?/).forEach((p, i) => {
+        if (i % 2) p.split('\n').forEach(l => { const len = l.replace(/^[+~] /, '').length; if (len > 60) warn(`${where}: code line over 60 chars (${len}) wraps in the card: "${l.slice(0, 30)}..."`); });
+      });
+    };
+
     /* modes */
     const modesArr = arr(F.modes, 'modes');
     const modes = modesArr.length ? [] : ['default'];
@@ -55,13 +65,20 @@
       else if (String(n.t).length > 30) warn(`node "${n.id}": title is ${String(n.t).length} chars; over 30 may overflow the box`);
       if (n.s && String(n.s).length > 38) warn(`node "${n.id}": subtitle over 38 chars may overflow the box`);
       if (n.detail != null && !Array.isArray(n.detail)) err(`node "${n.id}": detail must be an array of strings`);
+      ['what', 'why', 'tip'].forEach(k => { if (n[k] != null && typeof n[k] !== 'string') err(`node "${n.id}": ${k} must be a string`); });
+      fences(`node "${n.id}" tip`, n.tip);
+      if (Array.isArray(n.detail)) n.detail.forEach((d, j) => fences(`node "${n.id}" detail[${j}]`, d));
       if (n.tag && typeof n.tag === 'object' && n.tag.tone && !TONES.includes(n.tag.tone)) warn(`node "${n.id}": unknown tag tone "${n.tag.tone}"`);
       checkModes(`node "${n.id}"`, n.modes);
       if (n.byMode != null) {
         if (typeof n.byMode !== 'object') err(`node "${n.id}": byMode must be an object`);
         else Object.keys(n.byMode).forEach(m => {
           if (!modes.includes(m)) err(`node "${n.id}": byMode key "${m}" is not a mode`);
-          Object.keys(n.byMode[m] || {}).forEach(f => { if (!['t', 's', 'tip', 'detail'].includes(f)) err(`node "${n.id}": byMode.${m}.${f} is not allowed (use t, s, tip, detail)`); });
+          const bm = n.byMode[m] || {};
+          Object.keys(bm).forEach(f => { if (!['t', 's', 'tip', 'detail', 'what', 'why'].includes(f)) err(`node "${n.id}": byMode.${m}.${f} is not allowed (use t, s, tip, detail, what, why)`); });
+          ['what', 'why', 'tip'].forEach(k => { if (bm[k] != null && typeof bm[k] !== 'string') err(`node "${n.id}": byMode.${m}.${k} must be a string`); });
+          fences(`node "${n.id}" byMode.${m}.tip`, bm.tip);
+          if (Array.isArray(bm.detail)) bm.detail.forEach((d, j) => fences(`node "${n.id}" byMode.${m}.detail[${j}]`, d));
         });
       }
     });
@@ -204,10 +221,17 @@
       const w = `questions[${i}]${q && q.id ? ' "' + q.id + '"' : ''}`;
       if (!q || !q.id) err(`${w}: no id`);
       if (!q || !q.q) err(`${w}: no question text (q)`);
+      if (q) fences(w + ' text', q.q);
       if (q && q.node && !nodes[q.node]) err(`${w}: unknown node "${q.node}"`);
       if (q && q.mode && !modes.includes(q.mode)) err(`${w}: unknown mode "${q.mode}"`);
       if (q && q.scen && !scen[q.scen]) err(`${w}: unknown scenario "${q.scen}"`);
     });
+
+    /* labels */
+    if (F.labels != null) {
+      if (typeof F.labels !== 'object' || Array.isArray(F.labels)) err('labels must be an object of strings');
+      else Object.keys(F.labels).forEach(k => { if (typeof F.labels[k] !== 'string') err(`labels.${k} must be a string`); });
+    }
 
     return { errors: E, warnings: W };
   }

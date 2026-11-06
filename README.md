@@ -15,7 +15,11 @@ No build, no dependencies, no network. Open `index.html` in a browser.
 - **Scenarios:** each scenario has its own steps per mode, plus a one-line outcome.
 - **State panel:** counters (green when right, red when too many), values, and table rows that fill in as the story plays.
 - **Path only:** dims every box and arrow that the current scenario does not touch.
-- **Click a box:** see its details, its neighbours, and related questions.
+- **Click a box:** a highlighted detail card at the top of the right panel: a **what it is / what it solves** summary, the full details, its neighbours and related questions. `✕` or `Esc` closes it.
+- **Rich tooltip:** hover a box and a tooltip opens **beside** it (never on top). `tip` supports one bullet per ` · ` part, inline `` `code` `` and `**bold**`.
+- **Code boxes:** fenced blocks inside `tip`, `detail` and question text render as a monospace box.
+- **Diff markers:** in a code box, a line starting with `+ ` is shown green (new) and `~ ` amber (changed); other lines are existing code.
+- **Configurable labels:** `FLOW.labels` renames the card header, the `what` / `why` captions and the tooltip hint.
 - **Questions drawer:** open questions with options, pros and cons, checkboxes and notes.
 - **Comment mode:** click anywhere on the chart to pin a comment; export as JSON or Markdown, import JSON.
 - **Export (`⬇ Export` / `X`):** SVG or PNG of the chart exactly as shown (mode, step, theme, Path only, tokens), or the whole page as **one HTML file** (engine + data) that plays offline. Option: include faint boxes of other modes.

@@ -72,12 +72,14 @@ window.FLOW = {
     x: 520, y: 540,              // centre of the box
     t: 'Charge card',            // title, ≤ 30 chars
     s: 'payment provider',       // optional subtitle, ≤ 38 chars
-    tip: 'Hover text',           // optional
-    detail: ['bullet', 'bullet'],// optional; shown in the side panel when the box is clicked
+    what: 'What this box is',    // optional; summary shown first in the detail card
+    why: 'What problem it solves', // optional; goes with `what`. Give every box both
+    tip: 'Hover text',           // optional; rich text, see "Rich text" below
+    detail: ['bullet', 'bullet'],// optional; shown in the side panel when the box is clicked (the card shows `tip` only when there is no `detail`)
     tag: 'NEW',                  // optional badge: 'TEXT' or {text:'OLD', tone:'chg'}; tones: new chg info bad ok warn
     modes: ['after'],            // optional; omit = visible in every mode
     w: 200, h: 64,               // optional size override
-    byMode: { after: { s: 'text in this mode', tip: '…' } },   // optional per-mode t / s / tip / detail for a shared box
+    byMode: { after: { s: 'text in this mode', tip: '…' } },   // optional per-mode t / s / tip / detail / what / why for a shared box
   } ],
 
   edges: [ {
@@ -126,10 +128,19 @@ window.FLOW = {
     detail: { now: ['how it works today'], opts: [ { k: 'A', t: 'Option', how: ['step'], pro: '…', con: '…', rec: true, cur: false } ], ask: 'What to ask', ref: 'file.go:42' },
   } ],
 
+  labels: { selected: '📌 Selected box', what: 'What it is', why: 'What it solves', clickHint: '👆 Click the box for full details' },  // optional UI texts (these are the defaults)
   commentTypes: { q: ['❓', 'Question', '#f59e0b'] },   // optional; overrides comment categories
   ghost: 'hide',                 // optional: 'faint' (default, other modes' boxes drawn faint) | 'hide' (not drawn)
 };
 ```
+
+### Rich text (`tip`, `detail` items, question text)
+
+- `tip`: each ` · ` separated part is its own bullet line (a single part has no bullet). Inline `` `code` `` and `**bold**` work everywhere.
+- Fenced code block: ```` ```lang\n…\n``` ```` renders as a code box. It is never split on ` · `.
+- Diff markers inside a code box: a line starting with `+ ` is new (green), `~ ` is changed (amber), anything else is existing code. The marker is shown in a gutter, not as text.
+- Node hover: the tooltip shows the title, the subtitle `s`, then the `tip` lines, and opens beside the box. Click the box for the detail card (top of the right panel).
+- Keep code lines ≤ 60 characters (the card is narrow and wraps); put comments on their own line, not at the end of a code line. JSON: one field per line.
 
 ### Steps
 
@@ -209,6 +220,10 @@ window.FLOW = {
 | `edge … passes through box` | Add or move `via` points so the line goes around, or move the box. |
 | `label of … sits on edge` / `overlaps box` | Move the label with `lt`, move the crossing line, or drop the label. |
 | `label of … covers lane title` | Move the label with `lt`, or move the line away from the top of the lane. |
+| `odd number of ``` (unclosed code fence)` | Close the fence in that `tip`, `detail` item or question text. |
+| `code line over 60 chars` | Split the line; move comments to their own line. |
+| `what / why / tip must be a string` | Use a string (not an array or object). |
+| `labels must be an object of strings` | `labels: { selected: '…', what: '…', why: '…', clickHint: '…' }`. |
 | `export: HTML file is not self-contained` | `index.html` must load `validate.js` and `flow.js` with plain `<script src="…">` tags, and `validate.js` must set `flowValidateSrc`. |
 | `passes through faint box (other mode)` | Re-route, or set `ghost: 'hide'` if the modes share the same space. |
 

@@ -27,9 +27,11 @@ Template repo: <https://github.com/twentyfxurth-k/flow-motion-template>
 3. Split big steps. One box per real call (e.g. "Charge card", "Save order", "Send email"), not one box per function. Users ask "where did the details go?" when steps are merged.
 4. Parallel work (goroutines, `Promise.all`) = one box per task in a row, a fan-out bus and a fan-in bus (`via` on a fixed y).
 5. Modes: put mode-only boxes in different spots, or set `ghost: 'hide'` when the modes share the same space.
-6. A box that exists in both modes but means something different per mode: use `byMode: { modeId: { s, tip, detail } }`. Do not write the other mode's words into a shared box.
+6. A box that exists in both modes but means something different per mode: use `byMode: { modeId: { s, tip, detail, what, why } }`. Do not write the other mode's words into a shared box.
 7. Side effects (status writes, logs, emails) get their own token and steps (`at` + `mv`), so "path only" highlights them and the state panel changes at the right moment.
-8. Unsure about behaviour → `questions` entry + tell the user. Do not invent.
+8. Every box gets `what` (what this box is) and `why` (what problem it solves), short. The detail card shows them first. Use `tip` for the hover summary and `detail` for the full list (the card shows `tip` only when there is no `detail`).
+9. Code in `tip` / `detail`: fenced block, JSON one field per line, comments on their own line (never at the end of a code line), code lines ≤ 60 chars. Mark new lines with `+ ` and changed lines with `~ ` at the start of the line.
+10. Unsure about behaviour → `questions` entry + tell the user. Do not invent.
 
 ## 3. Audit loop · must be clean before you hand the page over
 
