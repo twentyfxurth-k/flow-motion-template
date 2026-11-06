@@ -85,7 +85,7 @@ window.FLOW = {
   edges: [ {
     a: 'api_stock', b: 'api_charge',   // the edge key is "a>b"; one edge per direction
     label: 'yes',                // optional, keep it short
-    tip: 'Hover text',           // optional
+    tip: 'Hover text',           // optional; same rich text as a node tip
     modes: ['after'],            // optional
     dash: true,                  // optional dashed line (timeouts, async, "may happen")
     route: 'hv',                 // optional: 'auto' (default) | 'hv' (horizontal then vertical) | 'vh'
@@ -139,6 +139,8 @@ window.FLOW = {
 - `tip`: each ` · ` separated part is its own bullet line (a single part has no bullet). Inline `` `code` `` and `**bold**` work everywhere.
 - Fenced code block: ```` ```lang\n…\n``` ```` renders as a code box. It is never split on ` · `.
 - Diff markers inside a code box: a line starting with `+ ` is new (green), `~ ` is changed (amber), anything else is existing code. The marker is shown in a gutter, not as text.
+- Edge `tip` and comment-pin text use the same rich text as node tips (` · ` lines, `` `code` ``, `**bold**`; HTML is escaped).
+- ` · ` inside an inline `` `code` `` span does not split. The fence language may be any token (`JSON`, `c++`, `text`); it is never shown in the box.
 - Node hover: the tooltip shows the title, the subtitle `s`, then the `tip` lines, and opens beside the box. Click the box for the detail card (top of the right panel).
 - Keep code lines ≤ 60 characters (the card is narrow and wraps); put comments on their own line, not at the end of a code line. JSON: one field per line.
 

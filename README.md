@@ -17,6 +17,7 @@ No build, no dependencies, no network. Open `index.html` in a browser.
 - **Path only:** dims every box and arrow that the current scenario does not touch.
 - **Click a box:** a highlighted detail card at the top of the right panel: a **what it is / what it solves** summary, the full details, its neighbours and related questions. `✕` or `Esc` closes it.
 - **Rich tooltip:** hover a box and a tooltip opens **beside** it (never on top). `tip` supports one bullet per ` · ` part, inline `` `code` `` and `**bold**`.
+- **Same rich text everywhere:** edge `tip` and comment text use the same rich text as node tips.
 - **Code boxes:** fenced blocks inside `tip`, `detail` and question text render as a monospace box.
 - **Diff markers:** in a code box, a line starting with `+ ` is shown green (new) and `~ ` amber (changed); other lines are existing code.
 - **Configurable labels:** `FLOW.labels` renames the card header, the `what` / `why` captions and the tooltip hint.
