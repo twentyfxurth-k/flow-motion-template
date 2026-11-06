@@ -112,7 +112,7 @@ Comments, answers and view settings are stored in the browser (`localStorage`) u
 
 ## Contributing
 
-`main` and `release` are protected. Fork or branch from `main` (`feat/…`, `fix/…`, `docs/…`), make sure `node tools/audit.mjs .` exits 0, and open a pull request. The maintainer reviews and merges. Releases are tagged `vX.Y.Z` on `release`. Never commit real or private flows: this repo is public. See `AGENTS.md` § "Changing this repo".
+`main` and `release` are protected. Fork or branch from `main` (`feat/…`, `fix/…`, `docs/…`) and open a pull request. The maintainer reviews and merges. Releases are tagged `vX.Y.Z` on `release`. Before you open the PR, follow `AGENTS.md` § "Changing this repo", the single source of truth: it covers `node tools/check.mjs`, `node tools/audit.mjs .` (both exit 0) and an independent sensitive-data review of the diff. Never commit real flows or other sensitive data: this repo is public.
 
 ## License
 
