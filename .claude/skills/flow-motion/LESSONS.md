@@ -48,7 +48,7 @@ Each entry: what the user saw → cause → fix. "Engine" fixes are already in `
 | A log line assumed to mark "end of request" only printed on panic | Before using a log line, a status field or a field in an analysis, confirm it is on the normal path in the code. |
 | A design change was drawn before the user agreed, then had to be reverted | Draw proposals only after the user says yes; keep a backup of `flow.js` before big edits so a revert is one copy. |
 | A proposed value became wrong after new facts arrived (a timeout shorter than the call's normal latency) | When new facts arrive (timeouts, latencies), re-check every place that depends on them: tips, diff rows, questions. |
-| Real flows must never end up in a shared template | Template = generic example only. Before every commit, have an independent reviewer (agent) grep and read every file for company or private terms; keep real flows outside it. |
+| Real flows must never end up in a shared template | Template = generic example only. Before every commit, have an independent reviewer (agent) grep and read every file for sensitive data (company names, internal names, people, hosts, tokens); keep real flows outside it. |
 
 ## Visual review checklist (what the scripts cannot judge)
 

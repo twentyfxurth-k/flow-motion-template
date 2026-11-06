@@ -34,10 +34,11 @@ This applies when you change the template itself (engine, tools, docs, example).
 
 - `main` and `release` are protected: **no direct push, no force push, no delete.** Every change goes in through a pull request.
 - **Only the maintainer merges.** As an agent: open the PR, report the link, and stop. Never merge, never approve your own PR, never ask for or use a bypass.
+- `required_approving_review_count` is intentionally 0: GitHub does not let the maintainer approve their own PR, outside contributors cannot push (they must fork and open a PR), and only the maintainer can merge.
 - Branch from `main`, one topic per branch: `feat/<name>`, `fix/<name>`, `docs/<name>`. Never commit on `main` or `release`.
 - Before every commit:
   1. `node tools/check.mjs` and `node tools/audit.mjs .` exit 0.
-  2. Privacy review: have a reviewer that does not know your context (another agent, or a person) read the whole diff and every file it touches for company names, internal system or table names, people, paths with user names, hosts, account ids, tokens and non-example data. Fix every hit before you commit. Nothing private may ever enter history: this repo is public.
+  2. Sensitive-data review: have a reviewer that does not know your context (another agent, or a person) read the whole diff and every file it touches for sensitive data, for example: company names, internal system or table names, people, paths with user names, hosts, account ids, tokens and non-example data. Fix every hit before you commit. Nothing sensitive may ever enter history: this repo is public.
 - PR description: what changed, why, and the audit numbers (errors, warnings, layout issues, runs, export sizes).
 - Releases (maintainer only): merge `main` into `release` through a PR, then tag the release commit `vX.Y.Z` (semver: new feature → minor, fix → patch). Tags `v*` are protected: they cannot be moved or deleted, so tag only what is final.
 

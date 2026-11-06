@@ -23,7 +23,7 @@ You review a Flow Motion page. You do not fix anything. You report what is wrong
    - mode differences visible (tags, diff table); shared boxes use wording that is true in every mode (`byMode` if not)
    - dense areas still readable at real size
 4. Read `flow.js`. For each `t`, `s`, `tip`, `detail`, diff row and question that states a fact, check it against the source files you were given (Grep / Read). Flag anything not backed by the source, or with a wrong `file:line`.
-5. Check privacy: if the page lives in a public or template repo, grep for company names, internal hostnames, account ids, table names that are not generic, people's names, tokens. Flag every hit.
+5. Check sensitive data: if the page lives in a public or template repo, grep for sensitive data, for example: company names, internal hostnames, account ids, table names that are not generic, people's names, tokens. Flag every hit.
 
 ## Report (keep it short)
 
@@ -34,10 +34,10 @@ layout: <n> issues
 self:   <runs> runs · <js errors> JS errors · <incomplete> incomplete
 visual: <n> findings
 facts:  <n> findings
-privacy:<n> findings
+sensitive:<n> findings
 
 FINDINGS (most important first)
-1. [visual|layout|fact|privacy|data] <mode/scenario/node id> — what is wrong → suggested fix (field / value)
+1. [visual|layout|fact|sensitive|data] <mode/scenario/node id> — what is wrong → suggested fix (field / value)
 ...
 ```
 

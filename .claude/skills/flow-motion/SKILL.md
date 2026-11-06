@@ -18,7 +18,7 @@ Template repo: <https://github.com/twentyfxurth-k/flow-motion-template>
 
 - New page: copy `index.html` + `validate.js` from the template into the target folder, write a new `flow.js` next to them. Keep `tools/` in the template; run it with a path.
 - If the template is not on disk: `git clone https://github.com/twentyfxurth-k/flow-motion-template` (or ask the user where it lives).
-- The data may be private (company flows). Keep `flow.js` where the user's other private docs live. Never copy private data into the template repo.
+- The data may be sensitive (for example company flows). Keep `flow.js` where the user's other private docs live. Never copy sensitive data into the template repo.
 
 ## 2. Model the flow (read the source first)
 
@@ -53,7 +53,7 @@ Fix, re-run, repeat until the scripts are clean **and** the review has no findin
 
 - Tell the user what was modelled, what came from code (with file:line) and what was assumed.
 - Mention anything the audit cannot judge (readability of dense areas, wording).
-- Files to share: `node <template>/tools/export.mjs <dir> --out <dir> [--mode m --scen s --step n] [--formats png]` → SVG / PNG of that moment, or one HTML file that plays offline (no folder to zip). Same as the `⬇ Export` button. Exports carry the flow data: same privacy rules as `flow.js`.
+- Files to share: `node <template>/tools/export.mjs <dir> --out <dir> [--mode m --scen s --step n] [--formats png]` → SVG / PNG of that moment, or one HTML file that plays offline (no folder to zip). Same as the `⬇ Export` button. Exports carry the flow data: same sensitive-data rules as `flow.js`.
 - Deep links for sharing a moment: `index.html#mode=<id>&scen=<id>&step=<n>&sel=<nodeId>`. Chart only: `#view=chart`.
 
 ## Known problems and fixes
