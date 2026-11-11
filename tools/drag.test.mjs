@@ -134,13 +134,15 @@ try {
   eq(base, 'translate(780 380)', 'a_fail starts at flow.js position (is this the bundled example?)');
   ok(await js("document.body.classList.contains('mvon') && !document.getElementById('mvHint').hidden"), '#move=1 opens with Move on and the hint shown');
 
-  await test('1. drag 100,50 moves the box, the edge end and the aligned waypoint', async () => {
+  await test('1. drag 100,50 moves the box and the edge ends; a bend that would run back through the box is dropped', async () => {
     await shot('move-on', 1600);
     await drag('a_fail', 100, 50, () => shot('mid-drag', 1600));
     eq(await pos('a_fail'), 'translate(880 430)', 'box position');
     eq((await layout()).nodes.a_fail, { x: 880, y: 430 }, 'getLayout().nodes.a_fail');
-    eq((await layout()).edges['a_fail>c_err'], [[880, 445], [165, 445]], 'fan-out waypoint under the box follows it in x');
-    ok((await edgeD('a_fail>c_err')).startsWith('M880 462'), 'edge a_fail>c_err starts at the new bottom of the box: ' + await edgeD('a_fail>c_err'));
+    /* the bus at y=445 is now inside the box (bottom 462): its first bend is dropped and the next one lines up with the left port
+       (the "bus follows in x" case is in tools/edges.test.mjs) */
+    eq((await layout()).edges['a_fail>c_err'], [[165, 430]], 'bend under the box dropped, next bend lined up with the port');
+    ok((await edgeD('a_fail>c_err')).startsWith('M780 430'), 'edge a_fail>c_err starts at the left side of the box: ' + await edgeD('a_fail>c_err'));
     ok((await edgeD('a_stock>a_fail')).includes('780'), 'edge a_stock>a_fail re-routed to the new left side: ' + await edgeD('a_stock>a_fail'));
     ok(!(await js("document.getElementById('svg').dataset.sel")), 'a drag does not select the box');
   });
@@ -161,7 +163,7 @@ try {
     eq(await layout(), { nodes: {}, edges: {} }, 'getLayout() after undo');
     await key('Z', 'KeyZ', 90, 2 | 8);
     eq(await pos('a_fail'), 'translate(880 430)', 'after redo');
-    eq((await layout()).edges['a_fail>c_err'], [[880, 445], [165, 445]], 'waypoint after redo');
+    eq((await layout()).edges['a_fail>c_err'], [[165, 430]], 'waypoint after redo');
   });
 
   await test('3b. arrow keys move the selected box (10px, Shift = 1px) and Esc cancels a drag', async () => {
@@ -194,7 +196,7 @@ try {
     ok(m, 'HTML export has the flow data');
     const L = JSON.parse(m[1]).layout || {};
     eq(L.a_fail, { x: 900, y: 420 }, 'HTML export FLOW.layout.a_fail');
-    eq(L.edges && L.edges['a_fail>c_err'], [[900, 445], [165, 445]], 'HTML export FLOW.layout.edges');
+    eq(L.edges && L.edges['a_fail>c_err'], [[165, 420]], 'HTML export FLOW.layout.edges');
     ok(Array.isArray(await js('window.FLOW_AUDIT')), 'FLOW_AUDIT updated');
   });
 
