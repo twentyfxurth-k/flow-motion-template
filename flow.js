@@ -39,7 +39,7 @@ window.FLOW = {
     { id: 'a_charge', x: 520, y: 540, t: 'Charge card', s: 'payment provider · sometimes slow',
       tip: 'The slow step. The gateway gives up after 29 s but this call keeps running.',
       what: 'Calls the payment provider to take the money.', why: 'This is the step that must happen exactly once.' },
-    { id: 'a_save', type: 'db', x: 520, y: 690, t: 'orders table',
+    { id: 'a_save', type: 'db', x: 520, y: 680, t: 'orders table',
       what: 'The database table that stores every order.', why: 'The order must be saved so support and the email worker can find it.',
       detail: ['Columns for the new design:',
         '```sql\n  id          bigint primary key\n  cart_id     text\n+ idem_key    text unique\n~ status      text default \'paid\'\n```',
@@ -47,13 +47,13 @@ window.FLOW = {
     { id: 'a_email', x: 780, y: 600, t: 'Send email inline', s: 'SMTP call inside the request', modes: ['before'], tag: { text: 'OLD', tone: 'chg' },
       tip: 'If SMTP is down, the whole request fails after the card was charged.',
       what: 'Sends the receipt email during the request.', why: 'Simple, but a mail outage breaks checkout.' },
-    { id: 'a_enq', x: 780, y: 760, t: 'Enqueue email job', modes: ['after'], tag: 'NEW',
+    { id: 'a_enq', x: 780, y: 790, t: 'Enqueue email job', modes: ['after'], tag: 'NEW',
       what: 'Puts an email job on a queue and returns at once.', why: 'A mail outage no longer affects the request.' },
     { id: 'a_resp', x: 520, y: 830, t: '200 OK + receipt', s: 'after: saved under the key',
       what: 'The success response with the receipt.', why: 'Closes the request.',
       byMode: { after: { what: 'The success response, also saved under the Idempotency-Key.', why: 'A retry can be answered with the same receipt.' } } },
 
-    { id: 'q_jobs', type: 'db', x: 1080, y: 760, t: 'jobs queue', s: 'at-least-once delivery', modes: ['after'], tag: 'NEW',
+    { id: 'q_jobs', type: 'db', x: 1080, y: 790, t: 'jobs queue', s: 'at-least-once delivery', modes: ['after'], tag: 'NEW',
       what: 'A queue that holds email jobs until a worker takes them.', why: 'Decouples the request from the mail server.' },
     { id: 'w_email', x: 1080, y: 560, t: 'Email worker', s: 'dedupe by orderId · retry ×3', modes: ['after'], tag: 'NEW',
       what: 'A background worker that sends the receipt email.', why: 'Retries mail failures without touching checkout.',
@@ -62,6 +62,10 @@ window.FLOW = {
       what: 'A dead-letter queue for jobs that kept failing.', why: 'Nothing is lost; ops can replay the jobs later.' },
     { id: 'mail', type: 'term', x: 1210, y: 250, t: 'Customer inbox',
       what: 'Where the receipt email arrives.', why: 'The customer gets proof of purchase.' },
+  ],
+
+  groups: [
+    { id: 'g_after_enq', nodes: ['a_resp', 'q_jobs'], tag: 'async', t: 'reply and email job run at the same time', modes: ['after'] },
   ],
 
   edges: [
@@ -80,9 +84,9 @@ window.FLOW = {
     { a: 'a_email', b: 'mail', label: 'email', modes: ['before'], via: [[900, 600], [900, 250]] },
     { a: 'a_email', b: 'a_resp', modes: ['before'], via: [[650, 600], [650, 830]] },
     { a: 'a_email', b: 'a_fail', label: 'SMTP down', modes: ['before'] },
-    { a: 'a_save', b: 'a_enq', modes: ['after'] },
+    { a: 'a_save', b: 'a_enq', modes: ['after'], route: 'hv' },
     { a: 'a_enq', b: 'q_jobs', modes: ['after'] },
-    { a: 'a_enq', b: 'a_resp', modes: ['after'], via: [[780, 830]] },
+    { a: 'a_enq', b: 'a_resp', modes: ['after'] },
     { a: 'q_jobs', b: 'w_email', label: 'deliver', modes: ['after'] },
     { a: 'w_email', b: 'mail', label: 'send', modes: ['after'] },
     { a: 'w_email', b: 'dlq', label: '3 failures', modes: ['after'], route: 'hv' },

@@ -25,7 +25,7 @@ Template repo: <https://github.com/twentyfxurth-k/flow-motion-template>
 1. Read the code / doc. For every box you draw, note the `file:line` it comes from. Put it in `s`, `tip` or `detail`.
 2. Lanes = actors or systems. Main path top → bottom, errors and side effects to the right.
 3. Split big steps. One box per real call (e.g. "Charge card", "Save order", "Send email"), not one box per function. Users ask "where did the details go?" when steps are merged.
-4. Parallel work (goroutines, `Promise.all`) = one box per task in a row, a fan-out bus and a fan-in bus (`via` on a fixed y).
+4. Parallel work (goroutines + `wg.Wait`, `Promise.all`, async fan-out) = one box per task in a row, a fan-out bus and a fan-in bus (`via` on a fixed y), and frame them with a group: `groups: [{ nodes: [ids], tag: 'par', t: 'what runs together' }]` (auto-fits and follows drags; see AGENTS.md § Groups). One token per task.
 5. Modes: put mode-only boxes in different spots, or set `ghost: 'hide'` when the modes share the same space.
 6. A box that exists in both modes but means something different per mode: use `byMode: { modeId: { s, tip, detail, what, why } }`. Do not write the other mode's words into a shared box.
 7. Side effects (status writes, logs, emails) get their own token and steps (`at` + `mv`), so "path only" highlights them and the state panel changes at the right moment.
