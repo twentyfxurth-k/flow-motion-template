@@ -2,7 +2,7 @@
 /* Flow Motion · full audit in a headless browser.
  * Usage: node tools/audit.mjs [dir-or-index.html] [--shots <outdir>] [--json]
  *
- * Runs the page once with #selftest=1 and reports:
+ * Runs the page once with #selftest=1&layout=0 (saved viewer positions ignored) and reports:
  *   1. data check   (validate.js)          → errors / warnings
  *   2. layout audit (engine, every mode)   → overlaps, lines through boxes, labels on lines, text overflow
  *   3. self test    (every scenario×mode)  → JS errors, steps that did not run
@@ -43,7 +43,7 @@ const run = (extra, h, timeout = 90000) => execFileSync(chrome,
   { encoding: 'utf8', timeout, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
 
 let dom;
-try { dom = run(['--window-size=1600,1200', '--dump-dom'], 'selftest=1'); }
+try { dom = run(['--window-size=1600,1200', '--dump-dom'], 'selftest=1&layout=0'); }
 catch (e) { console.error('✖ headless run failed: ' + e.message); process.exit(2); }
 
 const attr = n => (dom.match(new RegExp(`<html[^>]*\\b${n}="([^"]*)"`)) || [])[1];
@@ -68,7 +68,7 @@ if (shotsDir) {
   const modes = self ? [...new Set(self.runs.map(r => r.mode))] : [''];
   for (const m of modes) {
     const out = path.resolve(shotsDir, (m || 'default') + '.png');
-    try { run(['--window-size=2400,2400', `--screenshot=${out}`], `view=chart${m ? '&mode=' + m : ''}`); report.shots.push(out); }
+    try { run(['--window-size=2400,2400', `--screenshot=${out}`], `view=chart&layout=0${m ? '&mode=' + m : ''}`); report.shots.push(out); }
     catch (e) { report.shots.push(`FAILED ${m}: ${e.message}`); }
   }
 }

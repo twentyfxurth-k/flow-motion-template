@@ -181,6 +181,18 @@ pre.cb .mod::before{content:'~ ';color:var(--warn);font-weight:700}
 .pop.on{display:block}
 .pop select{font:inherit;font-size:12.5px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px}
 .pop .act{display:flex;gap:6px;justify-content:flex-end;margin-top:6px}
+/* move mode: drag boxes */
+#bMove .mvb{margin-left:6px;padding:0 6px;border-radius:8px;background:var(--warn);color:var(--card);font-size:11.5px;font-weight:700}
+#mvHint{font-size:12px;color:var(--muted)}
+body.mvon .chart{user-select:none;-webkit-user-select:none}
+body.mvon .nd:not(.ghost){cursor:move;touch-action:none}
+body.mvon .nd:not(.ghost):hover .sh{stroke:var(--accent);stroke-dasharray:5 3}
+.nd.drag{opacity:.88}
+.nd.drag .sh{stroke:var(--accent);stroke-width:2.5;stroke-dasharray:6 4}
+body.mvdrag,body.mvdrag *{cursor:move!important}
+.nd.moved .sh{stroke:var(--warn);stroke-width:3.5;stroke-dasharray:none;animation:mvblink .5s ease-in-out 3 alternate}
+@keyframes mvblink{to{stroke-opacity:.25}}
+#dlgBox textarea.lay{width:100%;min-height:200px;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--line);border-radius:8px;background:var(--lane);color:var(--ink);padding:8px}
 </style>
 </head>
 <body>
@@ -189,7 +201,7 @@ pre.cb .mod::before{content:'~ ';color:var(--warn);font-weight:700}
     <h1 id="ttl">Flow Motion</h1>
     <div id="dsc" class="muted"></div>
     <div class="muted small" style="margin-top:4px">Hover a box for details · click a box to see its links · click a step to jump ·
-      <kbd>Space</kbd> play/pause · <kbd>→</kbd> step · <kbd>←</kbd> back · <kbd>R</kbd> reset · <kbd>M</kbd> next mode · <kbd>1</kbd>–<kbd>9</kbd> scenario · <kbd>P</kbd> path only · <kbd>F</kbd> fit · <kbd>Q</kbd> questions · <kbd>C</kbd> comment · <kbd>X</kbd> export · <kbd>Esc</kbd> close</div>
+      <kbd>Space</kbd> play/pause · <kbd>→</kbd> step · <kbd>←</kbd> back · <kbd>R</kbd> reset · <kbd>M</kbd> next mode · <kbd>1</kbd>–<kbd>9</kbd> scenario · <kbd>P</kbd> path only · <kbd>F</kbd> fit · <kbd>Q</kbd> questions · <kbd>C</kbd> comment · <kbd>X</kbd> export · <kbd>Esc</kbd> close · <b>✥ Move</b> drag boxes</div>
   </header>
   <div id="check"></div>
 
@@ -218,6 +230,13 @@ pre.cb .mod::before{content:'~ ';color:var(--warn);font-weight:700}
         <label><input type="checkbox" id="exTok" checked> tokens at this step</label>
         <div class="muted small">SVG / PNG = current mode, step, theme and Path only. HTML = the whole page.</div>
       </div></span>
+    <button id="bMove" title="Move mode: drag boxes to new positions (saved in this browser only)">✥ Move</button>
+    <span class="exw"><button id="bMvMenu" title="Layout: copy positions, reset, show moved boxes">▾ Layout</button>
+      <div class="exm" id="mvMenu">
+        <div class="row"><button id="mvCopy" title="Copy a layout: {...} block to paste into flow.js">📋 Copy positions</button><button id="mvShow">👁 Show moved</button><button id="mvReset">↺ Reset layout</button></div>
+        <div class="muted small">Positions are a draft saved in this browser. Paste <code>layout</code> into <code>flow.js</code> to keep them.</div>
+      </div></span>
+    <span id="mvHint" hidden>Drag a box · Alt = no snap · Ctrl/Cmd+Z = undo</span>
   </div></div>
 
   <main>
@@ -274,6 +293,7 @@ const KEY = 'flowmotion:' + (F.id || 'flow') + ':';
 const store = {
   get(k, d) { try { const v = localStorage.getItem(KEY + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(KEY + k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(KEY + k); } catch (e) {} },
 };
 
 const MODES = F.modes && F.modes.length ? F.modes : [{ id: 'default', t: 'Default' }];
@@ -286,6 +306,32 @@ const vis = (o, m) => !o || !o.modes || o.modes.includes(m);
 /* node with its per-mode overrides (byMode: {modeId: {t, s, tip, detail, what, why}}) */
 const nodeIn = (id, m) => N[id] && N[id].byMode && N[id].byMode[m] ? Object.assign({}, N[id], N[id].byMode[m]) : N[id];
 const resolve = window.flowResolveSteps;
+
+/* ---------- layout: positions in force = flow.js nodes → FLOW.layout → this viewer's saved draft (localStorage) ---------- */
+const HP0 = new URLSearchParams(location.hash.slice(1));
+const NO_SAVED = HP0.get('layout') === '0' || HP0.get('selftest') === '1';   /* #layout=0: ignore (and never write) the saved draft */
+const ek = e => e.a + '>' + e.b;
+const cloneVia = v => Array.isArray(v) ? v.map(p => [p[0], p[1]]) : null;
+const okVia = v => Array.isArray(v) && v.length > 0 && v.every(p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite));
+const VIA = {};                                   /* live waypoints per edge key; FLOW.edges itself is never changed */
+(F.edges || []).forEach(e => { if (e && e.a && e.b) VIA[ek(e)] = okVia(e.via) ? cloneVia(e.via) : null; });
+const posOf = () => { const o = {}; for (const id in N) o[id] = { x: N[id].x, y: N[id].y }; return o; };
+const viaOf = () => { const o = {}; for (const k in VIA) o[k] = cloneVia(VIA[k]); return o; };
+const RAW = posOf(), RAWVIA = viaOf();            /* nodes[].x/y and edges[].via exactly as written */
+function applyLayout(L) {
+  if (!L || typeof L !== 'object' || Array.isArray(L)) return;
+  for (const id in L) {
+    const n = N[id], p = L[id];
+    if (id === 'edges' || !n || !p || typeof p !== 'object') continue;   /* unknown ids are ignored (and dropped on the next save) */
+    if (Number.isFinite(p.x)) n.x = p.x;
+    if (Number.isFinite(p.y)) n.y = p.y;
+  }
+  const E = L.edges;
+  if (E && typeof E === 'object') for (const k in E) if (k in VIA && okVia(E[k])) VIA[k] = cloneVia(E[k]);
+}
+applyLayout(F.layout);
+const BASE = posOf(), BASEVIA = viaOf();          /* "what flow.js says" (nodes + FLOW.layout) */
+if (!NO_SAVED) applyLayout(store.get('layout', null));
 function stepsOf(sc, m) {
   const list = resolve(sc, m);
   if (!Array.isArray(list)) return null;
@@ -348,10 +394,11 @@ function anchor(n, s) {
 function route(e) {
   const A = N[e.a], B = N[e.b];
   let pts;
-  if (e.via && e.via.length) {
+  const via = VIA[ek(e)];
+  if (via && via.length) {
     /* waypoints: keep every segment horizontal or vertical (add an elbow where needed) */
-    const sa = sideTo(A, e.via[0]), sb = sideTo(B, e.via[e.via.length - 1]);
-    const raw = [anchor(A, sa), ...e.via, anchor(B, sb)];
+    const sa = sideTo(A, via[0]), sb = sideTo(B, via[via.length - 1]);
+    const raw = [anchor(A, sa), ...via, anchor(B, sb)];
     pts = [raw[0]];
     for (let i = 1; i < raw.length; i++) {
       const p = pts[pts.length - 1], q = raw[i];
@@ -387,15 +434,33 @@ function route(e) {
 /* ---------- draw ---------- */
 const EL = {}, NL = {};
 let VB = [0, 0, 100, 100];
-function drawStatic() {
-  const svg = $('svg');
+function computeVB() {
   let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
   const grow = (a, b, c, d) => { x0 = Math.min(x0, a); y0 = Math.min(y0, b); x1 = Math.max(x1, c); y1 = Math.max(y1, d); };
   (F.lanes || []).forEach(l => grow(l.x, l.y, l.x + l.w, l.y + l.h));
   Object.values(N).forEach(n => grow(n.x - n.w / 2, n.y - n.h / 2 - 16, n.x + n.w / 2, n.y + n.h / 2));
-  (F.edges || []).forEach(e => (e.via || []).forEach(p => grow(p[0], p[1], p[0], p[1])));
+  Object.values(VIA).forEach(v => (v || []).forEach(p => grow(p[0], p[1], p[0], p[1])));
   const P = 20; VB = [x0 - P, y0 - P, x1 - x0 + 2 * P, y1 - y0 + 2 * P];
-  svg.setAttribute('viewBox', VB.join(' '));
+  $('svg').setAttribute('viewBox', VB.join(' '));
+}
+/* (re)draw the line of one edge from the live positions: path, length, label, trails that follow it */
+function layoutEdge(k) {
+  const E = EL[k], RT = route(E.e);
+  E.hit.setAttribute('d', RT.d); E.p.setAttribute('d', RT.d); E.f.setAttribute('d', RT.d);
+  E.len = E.p.getTotalLength(); E.pts = RT.pts;
+  if (E.lt) {
+    const e = E.e, m = E.p.getPointAtLength(E.len * (typeof e.lt === 'number' ? Math.min(.95, Math.max(.05, e.lt)) : .5));
+    E.lt.setAttribute('x', m.x); E.lt.setAttribute('y', m.y);
+    const bb = E.lt.getBBox(), r = E.lr;
+    r.setAttribute('x', bb.x - 4); r.setAttribute('y', bb.y - 1); r.setAttribute('width', bb.width + 8); r.setAttribute('height', bb.height + 2); r.setAttribute('rx', 4);
+    E.lb = [bb.x - 4, bb.y - 1, bb.x + bb.width + 4, bb.y + bb.height + 1];
+  }
+  for (const tk in TR) if (tk.slice(tk.indexOf('|') + 1) === k) TR[tk].setAttribute('d', RT.d);
+}
+function tagRect(n, tw) { const tx = n.x + n.w / 2 - tw / 2 - 6, ty = n.y - n.h / 2 - 2; return [tx - tw / 2, ty - 9, tx + tw / 2, ty + 7]; }
+function layoutNode(id) { const n = N[id], L = NL[id]; L.g.setAttribute('transform', `translate(${n.x} ${n.y})`); if (L.tagW) L.tagR = tagRect(n, L.tagW); }
+function drawStatic() {
+  computeVB();
 
   (F.lanes || []).forEach(l => {
     el('rect', { x: l.x, y: l.y, width: l.w, height: l.h, rx: 14, class: 'lane' }, $('gLanes'));
@@ -404,23 +469,14 @@ function drawStatic() {
 
   for (const e of F.edges || []) {
     if (!N[e.a] || !N[e.b]) continue;
-    const k = e.a + '>' + e.b, g = el('g', { class: 'ed' + (e.dash ? ' dash' : ''), 'data-k': k }, $('gEdges'));
-    const RT = route(e), d = RT.d;
-    let lb = null;
-    const hit = el('path', { d, class: 'hit' }, g);
-    const p = el('path', { d, class: 'b' }, g);
-    el('path', { d, class: 'f' }, g);
-    const len = p.getTotalLength();
-    if (e.label) {
-      const m = p.getPointAtLength(len * (typeof e.lt === 'number' ? Math.min(.95, Math.max(.05, e.lt)) : .5)), lg = el('g', { class: 'el' }, g);
-      const r = el('rect', {}, lg), t = el('text', { x: m.x, y: m.y }, lg);
-      t.textContent = e.label;
-      const bb = t.getBBox(); r.setAttribute('x', bb.x - 4); r.setAttribute('y', bb.y - 1); r.setAttribute('width', bb.width + 8); r.setAttribute('height', bb.height + 2); r.setAttribute('rx', 4);
-      lb = [bb.x - 4, bb.y - 1, bb.x + bb.width + 4, bb.y + bb.height + 1];
-    }
+    const k = ek(e), g = el('g', { class: 'ed' + (e.dash ? ' dash' : ''), 'data-k': k }, $('gEdges'));
+    const hit = el('path', { class: 'hit' }, g), p = el('path', { class: 'b' }, g), f = el('path', { class: 'f' }, g);
+    let lr = null, lt = null;
+    if (e.label) { const lg = el('g', { class: 'el' }, g); lr = el('rect', {}, lg); lt = el('text', {}, lg); lt.textContent = e.label; }
     hit.addEventListener('mouseenter', ev => showTip(ev, (e.label || k), e.tip || (N[e.a].t + ' → ' + N[e.b].t)));
     hit.addEventListener('mousemove', moveTip); hit.addEventListener('mouseleave', hideTip);
-    EL[k] = { g, p, len, e, pts: RT.pts, lb };
+    EL[k] = { g, hit, p, f, e, lr, lt, lb: null, len: 0, pts: [] };
+    layoutEdge(k);
   }
 
   for (const id in N) {
@@ -438,21 +494,21 @@ function drawStatic() {
     const textW = {};
     MODES.forEach(m => { const o = nodeIn(id, m.id); tt.textContent = o.t || id; if (ts) ts.textContent = o.s || ''; textW[m.id] = measure(); });
     tt.textContent = n.t || id; if (ts) ts.textContent = n.s;
-    let tagR = null;
+    let tagR = null, tagW = 0;
     if (n.tag) {
       const tg = typeof n.tag === 'string' ? { text: n.tag, tone: 'new' } : n.tag;
       const tw = Math.max(30, String(tg.text).length * 6.4 + 12), gx = el('g', { class: 'tag', transform: `translate(${w / 2 - tw / 2 - 6} ${-hh / 2 - 2})` }, g);
       el('rect', { x: -tw / 2, y: -9, width: tw, height: 16, fill: TAGC[tg.tone] || TAGC.new }, gx);
       el('text', { y: -1 }, gx).textContent = tg.text;
-      const tx = n.x + w / 2 - tw / 2 - 6, ty2 = n.y - hh / 2 - 2;
-      tagR = [tx - tw / 2, ty2 - 9, tx + tw / 2, ty2 + 7];
+      tagW = tw; tagR = tagRect(n, tw);
     }
     /* node tooltip sits beside the box (never on top of it) so the box stays visible and clickable */
-    g.addEventListener('mouseenter', () => { clearTimeout(tipT); tipT = setTimeout(() => nodeTip(id), 250); });
+    g.addEventListener('mouseenter', () => { clearTimeout(tipT); tipT = setTimeout(() => { if (!D) nodeTip(id); }, 250); });
     g.addEventListener('mouseleave', hideTip);
     g.addEventListener('mousedown', hideTip);
+    g.addEventListener('pointerdown', ev => dragStart(ev, id));
     g.addEventListener('click', ev => { if (CM.on) return; ev.stopPropagation(); hideTip(); selectNode(sel === id ? '' : id); });
-    NL[id] = { g, textW, tagR, tt, ts };
+    NL[id] = { g, textW, tagR, tagW, tt, ts };
   }
   $('svg').addEventListener('click', () => { if (!CM.on && sel) selectNode(''); });
 }
@@ -517,7 +573,7 @@ function applySel() {
 }
 
 /* ---------- runtime ---------- */
-let mode = MODES[0].id, scen = SC.length ? SC[0].id : '', steps = [], idx = 0, st = null, toks = {}, TR = {}, playing = false, busy = false, gen = 0, focus = '';
+let mode = MODES[0].id, scen = SC.length ? SC[0].id : '', steps = [], idx = 0, st = null, toks = {}, TR = {}, TA = {}, playing = false, busy = false, gen = 0, focus = '';
 const scObj = id => SC.find(s => s.id === id);
 function fresh() {
   const s = { v: {}, rows: {} };
@@ -559,15 +615,16 @@ function applyFx(fx) {
 async function run(i, anim) {
   const s = steps[i], g0 = gen;
   if (!N[s.a]) { idx = i + 1; renderState(); return; }
-  if (s.at) { place(s.k, N[s.a].x, N[s.a].y); if (anim) { pulse(s.a); await wait(650 / speed()); } }
+  if (s.at) { place(s.k, N[s.a].x, N[s.a].y); TA[s.k] = s.a; if (anim) { pulse(s.a); await wait(650 / speed()); } }
   else {
     const E = EL[s.a + '>' + s.b];
     if (!E || !N[s.b]) { console.error('[flow] missing edge', s.a + '>' + s.b); idx = i + 1; renderState(); return; }
     if (!toks[s.k]) place(s.k, N[s.a].x, N[s.a].y);
     toks[s.k].g.classList.remove('dim');
+    TA[s.k] = '';
     if (anim) { E.g.style.setProperty('--tc', TK[s.k] ? TK[s.k].color : 'var(--accent)'); E.g.classList.add('act'); await animate(E, s.k, g0); E.g.classList.remove('act'); }
     if (g0 !== gen) return;
-    place(s.k, N[s.b].x, N[s.b].y);
+    place(s.k, N[s.b].x, N[s.b].y); TA[s.k] = s.b;
     const tk = s.k + '|' + s.a + '>' + s.b;
     let tp = TR[tk];
     if (!tp) {
@@ -633,7 +690,7 @@ function reset() {
   const sc = scObj(scen);
   steps = (sc && stepsOf(sc, mode)) || [];
   st = fresh(); idx = 0;
-  for (const k in toks) toks[k].g.remove(); toks = {};
+  for (const k in toks) toks[k].g.remove(); toks = {}; TA = {};
   for (const k in EL) EL[k].g.classList.remove('act');
   $('gTrails').innerHTML = ''; TR = {};
   markPath();
@@ -694,7 +751,7 @@ function sync() {
   [...$('scens').children].forEach(b => { const s = scObj(b.dataset.id), ok = !!stepsOf(s, mode); b.classList.toggle('on', b.dataset.id === scen); b.disabled = !ok; b.title = ok ? (s.d || '') : 'Not in this mode'; });
   const m = MODES.find(x => x.id === mode); $('modeDesc').textContent = (m && m.d) || '';
   const sc = scObj(scen); $('scenDesc').textContent = sc ? (sc.d || '') : '';
-  applyMode(); renderDiff(); reset(); applySel(); renderPins();
+  applyMode(); renderDiff(); reset(); applySel(); renderPins(); mvBadge();
 }
 function setMode(id) { if (MODES.some(m => m.id === id)) { mode = id; sync(); } }
 function setScen(id) { const s = scObj(id); if (s && stepsOf(s, mode)) { scen = id; sync(); } }
@@ -709,9 +766,10 @@ let hashReady = false;
 function writeHash() {
   if (!hashReady) return;
   const p = new URLSearchParams(); p.set('mode', mode); p.set('scen', scen); if (idx) p.set('step', idx); if (sel) p.set('sel', sel);
+  if (HP0.get('layout') === '0') p.set('layout', '0'); if (MV.on) p.set('move', '1');
   try { history.replaceState(null, '', '#' + p.toString()); } catch (e) {}
 }
-function readHash() { const p = new URLSearchParams(location.hash.slice(1)); return { mode: p.get('mode'), scen: p.get('scen'), step: +p.get('step') || 0, sel: p.get('sel') || '', selftest: p.get('selftest') === '1', view: p.get('view') || '', export: p.get('export') || '', ghost: p.get('ghost') === '1' }; }
+function readHash() { const p = new URLSearchParams(location.hash.slice(1)); return { mode: p.get('mode'), scen: p.get('scen'), step: +p.get('step') || 0, sel: p.get('sel') || '', selftest: p.get('selftest') === '1', view: p.get('view') || '', export: p.get('export') || '', ghost: p.get('ghost') === '1', move: p.get('move') === '1' }; }
 
 /* ---------- fit / theme ---------- */
 let real = store.get('real', false);
@@ -719,6 +777,170 @@ function applyFit() { $('chart').classList.toggle('real', real); $('svg').style.
 const THEMES = ['auto', 'light', 'dark'];
 let theme = store.get('theme', 'auto');
 function applyTheme() { if (theme === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = theme; $('bTheme').textContent = '◐ ' + theme[0].toUpperCase() + theme.slice(1); }
+
+/* ---------- move mode: drag boxes (a draft; positions become permanent only through FLOW.layout in flow.js) ---------- */
+const MV = { on: false, undo: [], redo: [] };
+let D = null;                                     /* the drag in progress */
+const GRID = 10, CLICK_PX = 4, UNDO_MAX = 50;
+/* edge rule: for each edge with waypoints that touches the box, the waypoint nearest the box follows it
+   on the axis where it is lined up with the box centre (same x → shifts in x, same y → shifts in y) */
+function viaPlan(id) {
+  const n = N[id], plan = [];
+  for (const k in EL) {
+    const e = EL[k].e, v = VIA[k];
+    if (e.a === e.b || (e.a !== id && e.b !== id) || !v || !v.length) continue;
+    let bi = 0, bd = Infinity;
+    v.forEach((p, i) => { const d = Math.hypot(p[0] - n.x, p[1] - n.y); if (d < bd) { bd = d; bi = i; } });
+    const p = v[bi], sx = Math.abs(p[0] - n.x) <= 1, sy = Math.abs(p[1] - n.y) <= 1;
+    if (sx || sy) plan.push({ k, i: bi, x0: p[0], y0: p[1], sx, sy });
+  }
+  return { id, x0: n.x, y0: n.y, plan };
+}
+function snapOf(P) { const n = N[P.id], via = {}; P.plan.forEach(q => { via[q.k] = cloneVia(VIA[q.k]); }); return { id: P.id, x: n.x, y: n.y, via }; }
+function relayout(id) {
+  layoutNode(id);
+  for (const k in EL) { const e = EL[k].e; if (e.a === id || e.b === id) layoutEdge(k); }
+  for (const t in TA) if (TA[t] === id && toks[t]) place(t, N[id].x, N[id].y);
+}
+function applySnap(S) { N[S.id].x = S.x; N[S.id].y = S.y; for (const k in S.via) VIA[k] = cloneVia(S.via[k]); relayout(S.id); }
+function setPos(P, x, y) {
+  const dx = x - P.x0, dy = y - P.y0;
+  N[P.id].x = x; N[P.id].y = y;
+  P.plan.forEach(q => { const v = VIA[q.k] = cloneVia(VIA[q.k]); v[q.i] = [q.sx ? q.x0 + dx : v[q.i][0], q.sy ? q.y0 + dy : v[q.i][1]]; });
+  relayout(P.id);
+}
+/* differences between the live layout and a reference (BASE = flow.js, RAW = nodes[] without FLOW.layout) */
+function layoutDiff(PN, PV) {
+  const nodes = {}, edges = {};
+  for (const id in N) if (N[id].x !== PN[id].x || N[id].y !== PN[id].y) nodes[id] = { x: N[id].x, y: N[id].y };
+  for (const k in VIA) if (VIA[k] && JSON.stringify(VIA[k]) !== JSON.stringify(PV[k])) edges[k] = cloneVia(VIA[k]);
+  return { nodes, edges };
+}
+const asLayout = d => Object.assign({}, d.nodes, Object.keys(d.edges).length ? { edges: d.edges } : {});
+function saveLayout() {
+  if (NO_SAVED) return;
+  const L = asLayout(layoutDiff(BASE, BASEVIA));
+  if (Object.keys(L).length) store.set('layout', L); else store.del('layout');
+}
+function afterLayout() { computeVB(); applyFit(); saveLayout(); showAudit(); }
+function commit(b, a) {
+  if (b.x === a.x && b.y === a.y) return;
+  MV.undo.push({ b, a }); if (MV.undo.length > UNDO_MAX) MV.undo.shift();
+  MV.redo = [];
+  afterLayout();
+}
+function moveNode(id, x, y) {
+  if (!N[id] || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+  const P = viaPlan(id), b = snapOf(P);
+  setPos(P, x, y); commit(b, snapOf(P));
+  return true;
+}
+function undo() { const o = MV.undo.pop(); if (!o) return false; applySnap(o.b); MV.redo.push(o); afterLayout(); return true; }
+function redo() { const o = MV.redo.pop(); if (!o) return false; applySnap(o.a); MV.undo.push(o); afterLayout(); return true; }
+function resetLayout() {
+  for (const id in N) { N[id].x = BASE[id].x; N[id].y = BASE[id].y; layoutNode(id); }
+  for (const k in VIA) VIA[k] = cloneVia(BASEVIA[k]);
+  for (const k in EL) layoutEdge(k);
+  for (const t in TA) if (TA[t] && toks[t]) place(t, N[TA[t]].x, N[TA[t]].y);
+  MV.undo = []; MV.redo = [];
+  afterLayout(); store.del('layout');
+}
+function getLayout() { return layoutDiff(BASE, BASEVIA); }
+/* pointer: under 4px = a click (select); beyond = drag. Centre snaps to a 10px grid, Alt = free, Esc = cancel */
+function dragStart(ev, id) {
+  if (!MV.on || CM.on || D || ev.button !== 0 || !vis(N[id], mode)) return;
+  hideTip();
+  const P = viaPlan(id);
+  D = { P, pid: ev.pointerId, cx: ev.clientX, cy: ev.clientY, on: false, cancel: false, g: NL[id].g, b: snapOf(P) };
+}
+function dragMove(ev) {
+  if (!D || ev.pointerId !== D.pid || D.cancel) return;
+  const ddx = ev.clientX - D.cx, ddy = ev.clientY - D.cy;
+  if (!D.on) {
+    if (Math.hypot(ddx, ddy) < CLICK_PX) return;
+    D.on = true; D.g.classList.add('drag'); document.body.classList.add('mvdrag'); hideTip();
+    try { D.g.setPointerCapture(D.pid); } catch (e) {}
+  }
+  ev.preventDefault();
+  const m = $('svg').getScreenCTM(), sx = m ? m.a : 1, sy = m ? m.d : 1;
+  let x = D.P.x0 + ddx / sx, y = D.P.y0 + ddy / sy;
+  if (ev.altKey) { x = Math.round(x); y = Math.round(y); } else { x = Math.round(x / GRID) * GRID; y = Math.round(y / GRID) * GRID; }
+  if (x !== N[D.P.id].x || y !== N[D.P.id].y) setPos(D.P, x, y);
+}
+function dragEnd(ev) {
+  if (!D || ev.pointerId !== D.pid) return;
+  const d = D; D = null;
+  d.g.classList.remove('drag'); document.body.classList.remove('mvdrag');
+  if (!d.on && !d.cancel) return;                 /* a click: the click handler selects the box */
+  eatClick();
+  if (ev.type === 'pointercancel' && !d.cancel) { applySnap(d.b); return; }
+  if (!d.cancel) commit(d.b, snapOf(d.P));
+}
+function dragAbort() {                            /* Esc: back to where the drag started; the click on release is ignored */
+  if (!D || !D.on) { D = null; return; }
+  applySnap(D.b); D.cancel = true;
+  D.g.classList.remove('drag'); document.body.classList.remove('mvdrag');
+}
+function eatClick() { const f = e => { e.stopPropagation(); e.preventDefault(); }; window.addEventListener('click', f, true); setTimeout(() => window.removeEventListener('click', f, true), 0); }
+function setMoveMode(on) {
+  MV.on = !!on;
+  if (!MV.on && D) { dragAbort(); D = null; }
+  document.body.classList.toggle('mvon', MV.on);
+  $('bMove').classList.toggle('on', MV.on);
+  $('mvHint').hidden = !MV.on;
+  mvBadge(); writeHash();
+}
+/* issue count of the current mode, on the toggle; click it to list the issues */
+function mvBadge() {
+  const b = $('bMove'); if (!b) return;
+  const n = MV.on ? audit(mode).length : 0;
+  b.innerHTML = '✥ Move' + (n ? `<span class="mvb" title="Layout issues in this mode · click to list">${n} issue${n > 1 ? 's' : ''}</span>` : '');
+}
+function mvIssues() {
+  const list = audit(mode), m = MODES.find(x => x.id === mode);
+  $('dlgBox').innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px"><b>${list.length} layout issue(s) · ${esc((m && m.t) || mode)}</b><button id="dlgX">✕</button></div>` +
+    (list.length ? '<ul>' + list.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '<p class="muted">No layout issues in this mode.</p>');
+  $('dlg').classList.add('on'); $('dlgX').onclick = () => $('dlg').classList.remove('on');
+}
+const jsKey = k => /^[A-Za-z_$][\w$]*$/.test(k) ? k : `'${k.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+const viaTxt = v => '[' + v.map(p => `[${p[0]}, ${p[1]}]`).join(', ') + ']';
+/* text to paste into flow.js: every box / waypoint that differs from nodes[] and edges[] (so it replaces any FLOW.layout) */
+function layoutText() {
+  const d = layoutDiff(RAW, RAWVIA), ids = Object.keys(d.nodes), ks = Object.keys(d.edges);
+  if (!ids.length && !ks.length) return '';
+  let s = 'layout: {\n';
+  ids.forEach(id => { s += `  ${jsKey(id)}: { x: ${d.nodes[id].x}, y: ${d.nodes[id].y} },\n`; });
+  if (ks.length) { s += '  edges: {\n'; ks.forEach(k => { s += `    ${jsKey(k)}: ${viaTxt(d.edges[k])},\n`; }); s += '  },\n'; }
+  s += '},\n';
+  if (ks.length) {
+    s += '// Or patch edges[].via in flow.js by hand (then drop layout.edges):\n';
+    ks.forEach(k => { const [a, b] = k.split('>'); s += `//   { a: '${a}', b: '${b}', via: ${viaTxt(d.edges[k])} }\n`; });
+  }
+  return s;
+}
+function mvCopy() {
+  const t = layoutText();
+  const body = t ? `<p class="small">Paste this into <code>window.FLOW = { … }</code> in <code>flow.js</code> (replace any existing <code>layout</code>), then run <code>node tools/check.mjs</code>.</p><textarea class="lay" id="layTxt" readonly></textarea><div class="small muted" id="layMsg"></div>`
+    : '<p class="muted">No box differs from <code>nodes[]</code> in flow.js. Nothing to copy.</p>';
+  $('dlgBox').innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px"><b>📋 Positions for flow.js</b><button id="dlgX">✕</button></div>` + body;
+  $('dlg').classList.add('on'); $('dlgX').onclick = () => $('dlg').classList.remove('on');
+  if (!t) return;
+  const ta = $('layTxt'); ta.value = t; ta.focus(); ta.select();
+  const ok = () => { $('layMsg').textContent = '✔ Copied to the clipboard.'; };
+  try { navigator.clipboard.writeText(t).then(ok, () => { try { if (document.execCommand('copy')) ok(); } catch (e) {} }); }
+  catch (e) { try { if (document.execCommand('copy')) ok(); } catch (e2) {} }
+}
+function mvShow() {
+  const ids = Object.keys(getLayout().nodes);
+  ids.forEach(id => { const g = NL[id].g; g.classList.remove('moved'); void g.getBoundingClientRect(); g.classList.add('moved'); setTimeout(() => g.classList.remove('moved'), 1600); });
+  const h0 = $('mvHint'), was = h0.textContent;
+  h0.textContent = ids.length ? `${ids.length} box(es) differ from flow.js` : 'No box differs from flow.js'; h0.hidden = false;
+  setTimeout(() => { h0.textContent = was; h0.hidden = !MV.on; }, 1800);
+}
+function moveKey(ev) {
+  const dx = { ArrowLeft: -1, ArrowRight: 1 }[ev.key] || 0, dy = { ArrowUp: -1, ArrowDown: 1 }[ev.key] || 0, s = ev.shiftKey ? 1 : GRID;
+  moveNode(sel, N[sel].x + dx * s, N[sel].y + dy * s);
+}
 
 /* ---------- questions ---------- */
 let QD = store.get('questions', {});
@@ -845,7 +1067,10 @@ function exportPng(opt, scale) {
 function exportHtml() {
   const safe = t => t.replace(/<\/(script)/gi, '<\\/$1');
   const vsrc = window.flowValidateSrc ? `(${window.flowValidateSrc})(window);` : '';
-  const data = JSON.stringify(F, null, 1);
+  /* live positions travel with the file as FLOW.layout, so it opens the way it looks now */
+  const L = asLayout(layoutDiff(RAW, RAWVIA)), FD = Object.assign({}, F);
+  if (Object.keys(L).length) FD.layout = L; else delete FD.layout;
+  const data = JSON.stringify(FD, null, 1);
   return PAGE_SRC
     .replace(/<script[^>]*(?:src="validate\.js"|id="fm-validate")[^>]*>[\s\S]*?<\/script>/, () => `<script id="fm-validate">${safe(vsrc)}<\/script>`)
     .replace(/<script[^>]*(?:src="flow\.js"|id="fm-flow")[^>]*>[\s\S]*?<\/script>/, () => `<script id="fm-flow">window.FLOW = ${safe(data)};<\/script>`);
@@ -864,9 +1089,17 @@ function wire() {
   $('bCl').onclick = () => $('drC').classList.toggle('on'); $('cClose').onclick = () => $('drC').classList.remove('on');
   $('bCm').onclick = () => cSetMode(!CM.on);
   $('bEx').onclick = ev => { ev.stopPropagation(); $('exMenu').classList.toggle('on'); };
-  document.addEventListener('click', ev => { if (!ev.target.closest('.exw')) $('exMenu').classList.remove('on'); });
+  document.addEventListener('click', ev => { if (!ev.target.closest('.exw')) { $('exMenu').classList.remove('on'); $('mvMenu').classList.remove('on'); } });
   $('exSvg').onclick = () => download(exName('svg'), exportSvg(exOpt()), 'image/svg+xml');
   $('exPng').onclick = () => exportPng(exOpt()).then(b => download(exName('png'), b)).catch(e => alert(e.message));
+  $('bMove').onclick = ev => { if (ev.target.closest('.mvb')) { mvIssues(); return; } setMoveMode(!MV.on); };
+  $('bMvMenu').onclick = ev => { ev.stopPropagation(); $('mvMenu').classList.toggle('on'); };
+  $('mvCopy').onclick = () => { $('mvMenu').classList.remove('on'); mvCopy(); };
+  $('mvShow').onclick = () => { $('mvMenu').classList.remove('on'); mvShow(); };
+  $('mvReset').onclick = () => { $('mvMenu').classList.remove('on'); const n = Object.keys(getLayout().nodes).length; if (confirm(n ? `Reset ${n} moved box(es) to the positions in flow.js?` : 'Reset the layout to flow.js?')) resetLayout(); };
+  window.addEventListener('pointermove', dragMove);
+  window.addEventListener('pointerup', dragEnd);
+  window.addEventListener('pointercancel', dragEnd);
   $('exHtml').onclick = () => download(`${F.id || 'flow'}_${stamp()}.html`, exportHtml(), 'text/html');
   $('dlg').onclick = ev => { if (ev.target === $('dlg')) $('dlg').classList.remove('on'); };
   for (const k in CTYPES) { const o = h('option', '', CTYPES[k][0] + ' ' + CTYPES[k][1]); o.value = k; $('cType').append(o); }
@@ -896,9 +1129,12 @@ function wire() {
   document.addEventListener('keydown', ev => {
     const tg = ev.target;
     if (tg && tg.closest && tg.closest('input,textarea,select')) { if (ev.key === 'Escape') tg.blur(); return; }
+    if (D && D.on && ev.key === 'Escape') { ev.preventDefault(); dragAbort(); return; }
+    if (MV.on && (ev.ctrlKey || ev.metaKey) && !ev.altKey && (ev.key === 'z' || ev.key === 'Z')) { ev.preventDefault(); if (ev.shiftKey) redo(); else undo(); return; }
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
     const k = ev.key;
-    if (k === 'Escape') { $('exMenu').classList.remove('on'); $('dlg').classList.remove('on'); $('drQ').classList.remove('on'); $('drC').classList.remove('on'); if ($('cEd').classList.contains('on')) cClose(true); if (CM.on) cSetMode(false); if (sel) selectNode(''); return; }
+    if (MV.on && sel && /^Arrow(Left|Right|Up|Down)$/.test(k) && vis(N[sel], mode) && !D) { ev.preventDefault(); moveKey(ev); return; }
+    if (k === 'Escape') { $('exMenu').classList.remove('on'); $('mvMenu').classList.remove('on'); $('dlg').classList.remove('on'); $('drQ').classList.remove('on'); $('drC').classList.remove('on'); if ($('cEd').classList.contains('on')) cClose(true); if (CM.on) cSetMode(false); if (sel) selectNode(''); return; }
     if (k === ' ') { ev.preventDefault(); play(); }
     else if (k === 'ArrowRight') { ev.preventDefault(); step(); }
     else if (k === 'ArrowLeft') { ev.preventDefault(); jump(Math.max(0, idx - 1)); }
@@ -919,18 +1155,25 @@ document.title = F.title || 'Flow Motion';
 $('dsc').innerHTML = md(F.desc || '');
 drawStatic(); buildBars(); wire(); applyFit(); applyTheme(); qRender();
 if (F.ghost === 'hide') $('svg').dataset.ghost = 'hide';
-(function showAudit() {
+let auditN = -1;
+/* layout audit of every mode → window.FLOW_AUDIT, <html data-audit>, the yellow box; re-run after every move */
+function showAudit() {
   const all = []; MODES.forEach(m => audit(m.id).forEach(x => all.push((MODES.length > 1 ? '[' + m.id + '] ' : '') + x)));
   window.FLOW_AUDIT = all; document.documentElement.dataset.audit = String(all.length);
-  all.forEach(x => console.warn('[layout]', x));
-  if (all.length) $('check').insertAdjacentHTML('beforeend', `<details class="box w" style="margin-top:6px"><summary>${all.length} layout issue(s) · boxes, lines or labels overlap</summary><ul>${all.map(x => '<li>' + esc(x) + '</li>').join('')}</ul></details>`);
-})();
+  if (auditN < 0) all.forEach(x => console.warn('[layout]', x));
+  auditN = all.length;
+  const old = $('auditBox'); if (old) old.remove();
+  if (all.length) $('check').insertAdjacentHTML('beforeend', `<details class="box w" id="auditBox" style="margin-top:6px"><summary>${all.length} layout issue(s) · boxes, lines or labels overlap</summary><ul>${all.map(x => '<li>' + esc(x) + '</li>').join('')}</ul></details>`);
+  mvBadge();
+}
+showAudit();
 const H = readHash();
 if (H.mode && MODES.some(m => m.id === H.mode)) mode = H.mode;
 if (H.scen && scObj(H.scen)) scen = H.scen;
 sync();
 (async () => {
   if (H.view === 'chart') { document.body.classList.add('view-chart'); real = true; applyFit(); }
+  if (H.move && !H.selftest && !H.export) setMoveMode(true);
   if (H.selftest) await selfTest();
   if (H.step) await jump(H.step);
   if (H.sel) selectNode(H.sel);
@@ -1060,7 +1303,7 @@ function audit(m) {
   }
   return [...new Set(out)];
 }
-window.flowMotion = { audit, exportSvg, exportPng, exportHtml, setMode, setScen, jump, reset, play, step, stepsOf: (id, m) => stepsOf(scObj(id), m || mode), get state() { return st; }, get mode() { return mode; }, get scen() { return scen; }, get idx() { return idx; } };
+window.flowMotion = { audit, moveNode, getLayout, resetLayout, setMoveMode, undo, redo, get moveMode() { return MV.on; }, exportSvg, exportPng, exportHtml, setMode, setScen, jump, reset, play, step, stepsOf: (id, m) => stepsOf(scObj(id), m || mode), get state() { return st; }, get mode() { return mode; }, get scen() { return scen; }, get idx() { return idx; } };
 })();
 </script>
 </body>
