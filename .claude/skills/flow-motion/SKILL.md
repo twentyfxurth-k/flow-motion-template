@@ -55,6 +55,7 @@ Fix, re-run, repeat until the scripts are clean **and** the review has no findin
 - Mention anything the audit cannot judge (readability of dense areas, wording).
 - Files to share: `node <template>/tools/export.mjs <dir> --out <dir> [--mode m --scen s --step n] [--formats png]` → SVG / PNG of that moment, or one HTML file that plays offline (no folder to zip). Same as the `⬇ Export` button. Exports carry the flow data: same sensitive-data rules as `flow.js`.
 - Deep links for sharing a moment: `index.html#mode=<id>&scen=<id>&step=<n>&sel=<nodeId>`. Chart only: `#view=chart`. `#layout=0` ignores box positions a viewer dragged and saved in their browser; to keep a dragged layout, paste `▾ Layout → 📋 Copy positions` into `flow.js` as `layout`.
+- Fastest way to tidy a page: open it with `#move=1`, drag boxes and edit arrows in the page (click an arrow: drag its bends, segments, ends and label; `↺ Re-route` for automatic), then paste `📋 Copy positions` into `flow.js` (it writes boxes and `layout.edges`) and re-run the checks. Arrows cannot be reconnected to other boxes there; change `edges` for that.
 
 ## Known problems and fixes
 
