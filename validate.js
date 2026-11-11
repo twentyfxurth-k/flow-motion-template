@@ -83,11 +83,36 @@
       }
     });
 
+    /* layout: { nodeId: {x?, y?}, edges: {"a>b": [[x,y],…]} } applied on top of nodes[].x/y (edges are checked below) */
+    const L = F.layout;
+    const lay = L != null && typeof L === 'object' && !Array.isArray(L) ? L : {};
+    if (L != null && lay !== L) err('layout must be an object: { nodeId: { x, y }, … }');
+    const placed = {};                                   /* node id → layout entry */
+    Object.keys(lay).forEach(id => {
+      if (id === 'edges') return;
+      const p = lay[id];
+      if (!nodes[id]) return err(`layout: "${id}" is not a node id`);
+      if (!p || typeof p !== 'object' || Array.isArray(p)) return err(`layout.${id} must be an object { x, y }`);
+      Object.keys(p).forEach(k => { if (k !== 'x' && k !== 'y') warn(`layout.${id}: unknown key "${k}" (use x, y)`); });
+      ['x', 'y'].forEach(k => { if (p[k] !== undefined && !(typeof p[k] === 'number' && isFinite(p[k]))) err(`layout.${id}: ${k} must be a finite number`); });
+      placed[id] = p;
+    });
+    const fin = v => typeof v === 'number' && isFinite(v);
+    const eff = nodeArr.map(n => {
+      const p = n && n.id && placed[n.id];
+      return p ? Object.assign({}, n, fin(p.x) ? { x: p.x } : {}, fin(p.y) ? { y: p.y } : {}) : n;
+    });
+    const lanesArr = Array.isArray(F.lanes) ? F.lanes : [];
+    if (lanesArr.length) eff.forEach(n => {
+      if (!n || !placed[n.id] || !fin(n.x) || !fin(n.y)) return;
+      if (!lanesArr.some(l => l && n.x >= l.x && n.x <= l.x + l.w && n.y >= l.y && n.y <= l.y + l.h)) warn(`layout.${n.id}: the box is outside every lane`);
+    });
+
     /* overlap check (same mode visible, boxes intersect) */
     const SZ = { rect: [200, 64], term: [190, 56], dec: [200, 96], db: [190, 72], task: [150, 56], note: [220, 64] };
     const box = n => { const s = SZ[n.type || 'rect'] || SZ.rect; const w = n.w || s[0], h = n.h || s[1]; return [n.x - w / 2, n.y - h / 2, n.x + w / 2, n.y + h / 2]; };
-    for (let i = 0; i < nodeArr.length; i++) for (let j = i + 1; j < nodeArr.length; j++) {
-      const a = nodeArr[i], b = nodeArr[j];
+    for (let i = 0; i < eff.length; i++) for (let j = i + 1; j < eff.length; j++) {
+      const a = eff[i], b = eff[j];
       if (!a || !b || typeof a.x !== 'number' || typeof b.x !== 'number') continue;
       if (!modes.some(m => vis(a, m) && vis(b, m))) continue;
       const A = box(a), B = box(b);
@@ -113,6 +138,17 @@
           warn(`edge ${k} is visible in mode "${m}" but one of its nodes is hidden there (add "modes" to the edge)`);
       });
     });
+
+    /* layout.edges: waypoints that replace edges[].via */
+    if (lay.edges != null) {
+      const LE = lay.edges;
+      if (typeof LE !== 'object' || Array.isArray(LE)) err('layout.edges must be an object: { "a>b": [[x,y],…] }');
+      else Object.keys(LE).forEach(k => {
+        if (!edges[k]) return err(`layout.edges: "${k}" is not an edge`);
+        const v = LE[k];
+        if (!(Array.isArray(v) && v.length && v.every(p => Array.isArray(p) && p.length === 2 && p.every(fin)))) err(`layout.edges["${k}"] must look like [[x,y],[x,y]]`);
+      });
+    }
 
     /* tokens */
     const toks = {};
