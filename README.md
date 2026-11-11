@@ -24,6 +24,7 @@ No build, no dependencies, no network. Open `index.html` in a browser.
 - **Questions drawer:** open questions with options, pros and cons, checkboxes and notes.
 - **Comment mode:** click anywhere on the chart to pin a comment; export as JSON or Markdown, import JSON.
 - **Export (`⬇ Export` / `X`):** SVG or PNG of the chart exactly as shown (mode, step, theme, Path only, tokens), or the whole page as **one HTML file** (engine + data) that plays offline. Option: include faint boxes of other modes.
+- **Move boxes (`✥ Move`):** drag a box to a new place; edges and waypoints follow, the layout audit re-runs, undo / redo with Ctrl/Cmd+Z. The draft is kept in your browser; `▾ Layout → 📋 Copy positions` gives a `layout: {…}` block to paste into `flow.js`.
 - **Deep links:** `#mode=after&scen=timeout&step=12&sel=node_id` opens that exact moment.
 - **Built-in validation:** the page and `node tools/check.mjs` list every data error (missing edges, hidden nodes, token jumps, overlaps).
 - **Layout audit:** the page lists every visual collision per mode (text overflow, lines through boxes, labels on lines, labels on lane titles, stacked lines).
@@ -69,7 +70,7 @@ node tools/export.mjs . --out export                                  # svg + pn
 node tools/export.mjs . --out export --mode after --scen timeout --step 12 --formats png --theme light
 ```
 
-Both exit 0 when clean. Then look at the screenshots: lines, labels and wording are easier to judge by eye.
+Both exit 0 when clean. `node tools/drag.test.mjs` tests box dragging with real pointer input (Node 22+, bundled example only). Then look at the screenshots: lines, labels and wording are easier to judge by eye.
 
 ## Claude Code
 
@@ -94,7 +95,9 @@ They load automatically when Claude Code runs in this folder. To use them everyw
 | `Q` | questions |
 | `C` | comment mode |
 | `X` | export menu |
-| `Esc` | close / clear selection |
+| `Esc` | close / clear selection · cancel a drag |
+| `↑ ↓ ← →` | with `✥ Move` on and a box selected: move it 10px (`Shift` = 1px) |
+| `Ctrl/Cmd+Z` · `Shift+Ctrl/Cmd+Z` | with `✥ Move` on: undo / redo a move |
 
 ## Files
 
@@ -105,11 +108,12 @@ They load automatically when Claude Code runs in this folder. To use them everyw
 | `validate.js` | Data checks, shared by the page and the CLI |
 | `tools/check.mjs` | `node tools/check.mjs [file]` · data rules, no browser |
 | `tools/audit.mjs` | `node tools/audit.mjs [folder] [--shots dir] [--json]` · headless check + layout + self test + export check |
+| `tools/drag.test.mjs` | `node tools/drag.test.mjs [folder] [--shots dir]` · headless test of dragging boxes (bundled example) |
 | `tools/export.mjs` | `node tools/export.mjs [folder] [--out dir] [--formats svg,png,html] [--mode m] [--scen s] [--step n] [--ghost] [--theme light\|dark]` |
 | `.claude/` | Claude Code skill (`flow-motion`) and reviewer agent (`flow-motion-auditor`) |
 | `AGENTS.md` | Guide for AI agents: schema, rules, verification |
 
-Comments, answers and view settings are stored in the browser (`localStorage`) under `flowmotion:<FLOW.id>:`. Export comments to share them.
+Comments, answers, view settings and moved box positions are stored in the browser (`localStorage`) under `flowmotion:<FLOW.id>:`. Export comments to share them.
 
 ## Contributing
 

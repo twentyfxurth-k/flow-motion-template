@@ -54,7 +54,7 @@ Fix, re-run, repeat until the scripts are clean **and** the review has no findin
 - Tell the user what was modelled, what came from code (with file:line) and what was assumed.
 - Mention anything the audit cannot judge (readability of dense areas, wording).
 - Files to share: `node <template>/tools/export.mjs <dir> --out <dir> [--mode m --scen s --step n] [--formats png]` → SVG / PNG of that moment, or one HTML file that plays offline (no folder to zip). Same as the `⬇ Export` button. Exports carry the flow data: same sensitive-data rules as `flow.js`.
-- Deep links for sharing a moment: `index.html#mode=<id>&scen=<id>&step=<n>&sel=<nodeId>`. Chart only: `#view=chart`.
+- Deep links for sharing a moment: `index.html#mode=<id>&scen=<id>&step=<n>&sel=<nodeId>`. Chart only: `#view=chart`. `#layout=0` ignores box positions a viewer dragged and saved in their browser; to keep a dragged layout, paste `▾ Layout → 📋 Copy positions` into `flow.js` as `layout`.
 
 ## Known problems and fixes
 

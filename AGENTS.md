@@ -132,8 +132,26 @@ window.FLOW = {
   labels: { selected: '📌 Selected box', what: 'What it is', why: 'What it solves', clickHint: '👆 Click the box for full details' },  // optional UI texts (these are the defaults)
   commentTypes: { q: ['❓', 'Question', '#f59e0b'] },   // optional; overrides comment categories
   ghost: 'hide',                 // optional: 'faint' (default, other modes' boxes drawn faint) | 'hide' (not drawn)
+
+  layout: {                      // optional; positions applied on top of nodes[].x/y (the page's "📋 Copy positions" writes this block)
+    api_charge: { x: 540, y: 560 },          // node id → { x?, y? } (centre, same units as nodes[])
+    edges: { 'a_fail>c_err': [[880, 445], [165, 445]] },   // optional; edge key "a>b" → waypoints that replace that edge's via
+  },
 };
 ```
+
+### Layout (`layout`) and dragging boxes
+
+- The order is: `nodes[].x/y` → `FLOW.layout` → the viewer's saved draft (see below). `layout` applies to every mode.
+- `✥ Move` in the toolbar (off by default) lets anyone drag a box. Under 4px of movement is still a click (select).
+  The box centre snaps to a 10px grid (hold Alt for no snap), Esc cancels a drag, the arrow keys move the selected box 10px (Shift = 1px),
+  Ctrl/Cmd+Z undoes and Shift+Ctrl/Cmd+Z redoes (50 moves). Edges follow; the layout audit re-runs after every drop and its count for the current mode shows on the toggle.
+- Edge rule: when a box moves, the waypoint of each touching edge that is **nearest** the box follows it on the axis where it is lined up with the box centre
+  (same x → moves in x, same y → moves in y). Other waypoints stay. This keeps fan-out buses connected. Moved waypoints go in `layout.edges`.
+- **Dragging is a draft tool.** Moves are saved only in that browser (`localStorage`, key `flowmotion:<FLOW.id>:layout`). They become permanent
+  only when you paste the `layout` block from `▾ Layout → 📋 Copy positions` into `flow.js` (it replaces any existing `layout`), then run the checks.
+  `↺ Reset layout` drops the draft; `👁 Show moved` flashes the boxes that differ from `flow.js`.
+- A node with the id `edges` cannot be placed through `layout` (the key is reserved).
 
 ### Rich text (`tip`, `detail` items, question text)
 
@@ -204,10 +222,14 @@ window.FLOW = {
    # number of layout issues: <html data-audit="0">
    chrome --headless=new --disable-gpu --virtual-time-budget=5000 --dump-dom "file://$PWD/index.html" | grep -o 'data-audit="[0-9]*"'
    ```
-   Hash options: `#selftest=1` plays everything and writes `<pre id="flow-selftest">` + `<html data-selftest="ok|fail">`;
+   Hash options: `#selftest=1` plays everything and writes `<pre id="flow-selftest">` + `<html data-selftest="ok|fail">` (it ignores saved viewer positions);
+   `#layout=0` ignores (and never writes) the viewer's saved positions, so the page shows exactly `flow.js` (`tools/audit.mjs` uses it); `#move=1` opens with `✥ Move` on;
    `#view=chart` shows only the chart at real size (for screenshots);
    `#export=svg,png,html` (+ `&ghost=1`) writes the exports as JSON into a hidden `pre#flow-export` — `node tools/export.mjs` wraps this and saves the files.
-4. In the page, `window.FLOW_CHECK` holds `{errors, warnings}`, `window.FLOW_AUDIT` holds the layout issues, and `window.flowMotion` exposes `audit(modeId)`, `exportSvg({ghost, tokens})`, `exportPng(opt, scale)` (Promise of Blob), `exportHtml()`, `setMode(id)`, `setScen(id)`, `jump(n)`, `stepsOf(scenId, modeId)`, `state`.
+4. In the page, `window.FLOW_CHECK` holds `{errors, warnings}`, `window.FLOW_AUDIT` holds the layout issues, and `window.flowMotion` exposes `audit(modeId)`, `exportSvg({ghost, tokens})`, `exportPng(opt, scale)` (Promise of Blob), `exportHtml()`, `setMode(id)`, `setScen(id)`, `jump(n)`, `stepsOf(scenId, modeId)`, `state`,
+   and for the layout: `moveNode(id, x, y)` (absolute; same path as a drag: undo, save, audit), `getLayout()` (`{nodes: {id: {x, y}}, edges: {"a>b": via}}`, only what differs from `flow.js`),
+   `resetLayout()`, `setMoveMode(bool)`, `undo()`, `redo()`. Exports use the live positions; the HTML file embeds them as `FLOW.layout`.
+5. `node tools/drag.test.mjs [folder] [--shots <dir>]` tests dragging in headless Chrome (real pointer input over the DevTools protocol, Node 22+). It expects the bundled example `flow.js`.
 
 ## Common errors
 
@@ -229,6 +251,10 @@ window.FLOW = {
 | `labels must be an object of strings` | `labels: { selected: '…', what: '…', why: '…', clickHint: '…' }`. |
 | `export: HTML file is not self-contained` | `index.html` must load `validate.js` and `flow.js` with plain `<script src="…">` tags, and `validate.js` must set `flowValidateSrc`. |
 | `passes through faint box (other mode)` | Re-route, or set `ghost: 'hide'` if the modes share the same space. |
+| `layout: "x" is not a node id` | Fix the id in `layout`, or remove the entry (the node was renamed or deleted). |
+| `layout.x: x must be a finite number` | Use a plain number for `x` / `y`. |
+| `layout.edges: "a>b" is not an edge` / `must look like [[x,y],[x,y]]` | Fix the edge key, or the waypoint list. |
+| `layout.x: the box is outside every lane` | Move the box back into a lane (warning only). |
 
 ## Prompts users can give you
 
