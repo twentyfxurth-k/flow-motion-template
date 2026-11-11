@@ -12,6 +12,7 @@
   --accent:#2f6fde;--accent-soft:#e7effd;
   --ok:#1f8a4c;--ok-soft:#e4f5eb;--bad:#c53a3a;--bad-soft:#fbe8e8;--warn:#a86a00;--warn-soft:#fdf2dc;
   --new:#7c4ddb;--chg:#c27a00;--info:#2f6fde;
+  --grp:#2563eb;--grpInk:#1d4ed8;--grpOn:#ffffff;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0f1217;--card:#171b22;--ink:#e6e9ef;--muted:#98a1b3;--line:#2a303b;
@@ -19,6 +20,7 @@
   --accent:#6ea2ff;--accent-soft:#1b2740;
   --ok:#4cc883;--ok-soft:#142a1c;--bad:#ff7d7d;--bad-soft:#341a1a;--warn:#f1b74b;--warn-soft:#30260f;
   --new:#a98bff;--chg:#f1b74b;--info:#6ea2ff;
+  --grp:#60a5fa;--grpInk:#93c5fd;--grpOn:#0b1220;
 }}
 :root[data-theme="dark"]{
   --bg:#0f1217;--card:#171b22;--ink:#e6e9ef;--muted:#98a1b3;--line:#2a303b;
@@ -26,6 +28,7 @@
   --accent:#6ea2ff;--accent-soft:#1b2740;
   --ok:#4cc883;--ok-soft:#142a1c;--bad:#ff7d7d;--bad-soft:#341a1a;--warn:#f1b74b;--warn-soft:#30260f;
   --new:#a98bff;--chg:#f1b74b;--info:#6ea2ff;
+  --grp:#60a5fa;--grpInk:#93c5fd;--grpOn:#0b1220;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans",sans-serif}
@@ -95,6 +98,13 @@ ol#log li.fo{opacity:.2}
 /* svg */
 .lane{fill:var(--lane);stroke:var(--line)}
 .lt{fill:var(--muted);font-size:13px;font-weight:600}
+/* groups: dashed frame behind boxes that run at the same time */
+.grp{pointer-events:none;transition:opacity .25s}
+.grp rect.gb{fill:var(--grp);fill-opacity:.05;stroke:var(--grp);stroke-width:1.5;stroke-dasharray:7 5}
+.grp rect.gtag{fill:var(--grp)}
+.grp text.gtt{fill:var(--grpOn);font-size:11px;font-weight:700;text-anchor:middle;dominant-baseline:central}
+.grp text.gcap{fill:var(--grpInk);font-size:12px;font-weight:600;dominant-baseline:central;paint-order:stroke;stroke:var(--lane);stroke-width:5px;stroke-linejoin:round}
+.grp.ghost{opacity:.07}
 .nd{cursor:pointer;transition:opacity .25s}
 .nd .sh{fill:var(--node);stroke:var(--nodeLine);stroke-width:1.5}
 .nd.t-dec .sh{fill:var(--dec)} .nd.t-db .sh,.nd.t-db .lid{fill:var(--db)} .nd.t-term .sh{fill:var(--term)}
@@ -243,7 +253,7 @@ body.mvdrag,body.mvdrag *{cursor:move!important}
     <div class="card chart" id="chart">
       <svg id="svg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flowchart">
         <defs><marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker></defs>
-        <g id="gLanes"></g><g id="gEdges"></g><g id="gTrails"></g><g id="gNodes"></g><g id="gToks"></g><g id="gPins"></g>
+        <g id="gLanes"></g><g id="gGroups"></g><g id="gEdges"></g><g id="gTrails"></g><g id="gNodes"></g><g id="gToks"></g><g id="gPins"></g>
       </svg>
     </div>
     <aside>
@@ -431,6 +441,55 @@ function route(e) {
   return { d: 'M' + pts.map(p => p[0] + ' ' + p[1]).join(' L'), pts };
 }
 
+/* ---------- groups: a dashed frame behind boxes that run at the same time ----------
+   { nodes: [ids], pad? } = auto-fit (bounding box of those boxes and their tags + pad, follows them when they move)
+   { x, y, w, h }         = fixed frame                                                                              */
+const GRP = Array.isArray(F.groups) ? F.groups.filter(g => g && typeof g === 'object') : [];
+const GTAG_H = 18, GTAG_ROW = 26;                 /* tag pill height; extra room under the boxes for the tag row */
+const gTagW = g => 12 + String(g.tag || 'par').length * 7;
+const nodeTagW = n => { if (!n.tag) return 0; const tg = typeof n.tag === 'string' ? { text: n.tag } : n.tag; return Math.max(30, String(tg.text).length * 6.4 + 12); };
+/* frame [x, y, w, h] from the live positions, or null when it cannot be placed */
+function grpBox(g) {
+  if (Array.isArray(g.nodes) && g.nodes.length) {
+    const ids = g.nodes.filter(id => N[id]); if (!ids.length) return null;
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    const grow = r => { x0 = Math.min(x0, r[0]); y0 = Math.min(y0, r[1]); x1 = Math.max(x1, r[2]); y1 = Math.max(y1, r[3]); };
+    ids.forEach(id => { const n = N[id], tw = nodeTagW(n); grow([n.x - n.w / 2, n.y - n.h / 2, n.x + n.w / 2, n.y + n.h / 2]); if (tw) grow(tagRect(n, tw)); });
+    const p = Number.isFinite(g.pad) ? g.pad : 16;
+    return [x0 - p, y0 - p, x1 - x0 + 2 * p, y1 - y0 + p + Math.max(p, 6) + GTAG_ROW];
+  }
+  return [g.x, g.y, g.w, g.h].every(Number.isFinite) ? [g.x, g.y, g.w, g.h] : null;
+}
+const GL = [];                                    /* drawn groups: { g, o, r, tr, tt, cap, tw, box, tagR, capR } */
+function drawGroups() {
+  GRP.forEach((o, i) => {
+    const g = el('g', Object.assign({ class: 'grp', 'data-i': i }, o.id ? { 'data-id': o.id } : {}), $('gGroups'));
+    const r = el('rect', { class: 'gb', rx: 10 }, g), tw = gTagW(o);
+    const tr = el('rect', { class: 'gtag', rx: 5, width: tw, height: GTAG_H }, g);
+    const tt = el('text', { class: 'gtt' }, g); tt.textContent = o.tag || 'par';
+    const cap = o.t ? el('text', { class: 'gcap' }, g) : null; if (cap) cap.textContent = o.t;
+    GL.push({ g, o, r, tr, tt, cap, tw, box: null, tagR: null, capR: null });
+    layoutGroup(GL.length - 1);
+  });
+}
+function layoutGroup(i) {
+  const L = GL[i], b = grpBox(L.o);
+  L.box = b;
+  if (!b) { L.g.setAttribute('display', 'none'); L.tagR = L.capR = null; return; }
+  L.g.removeAttribute('display');
+  [['x', b[0]], ['y', b[1]], ['width', b[2]], ['height', b[3]]].forEach(([k, v]) => L.r.setAttribute(k, v));
+  const tx = b[0] + 10, ty = b[1] + b[3] - 8 - GTAG_H, cy = ty + GTAG_H / 2;
+  L.tr.setAttribute('x', tx); L.tr.setAttribute('y', ty);
+  L.tt.setAttribute('x', tx + L.tw / 2); L.tt.setAttribute('y', cy);
+  L.tagR = [tx, ty, tx + L.tw, ty + GTAG_H];
+  if (L.cap) {
+    L.cap.setAttribute('x', tx + L.tw + 8); L.cap.setAttribute('y', cy);
+    const bb = L.cap.getBBox(); L.capR = [bb.x - 2, bb.y - 1, bb.x + bb.width + 2, bb.y + bb.height + 1];
+  }
+}
+/* auto-fit frames follow their boxes; fixed frames never move */
+function layoutGroups() { GL.forEach((L, i) => { if (Array.isArray(L.o.nodes)) layoutGroup(i); }); }
+
 /* ---------- draw ---------- */
 const EL = {}, NL = {};
 let VB = [0, 0, 100, 100];
@@ -438,6 +497,7 @@ function computeVB() {
   let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
   const grow = (a, b, c, d) => { x0 = Math.min(x0, a); y0 = Math.min(y0, b); x1 = Math.max(x1, c); y1 = Math.max(y1, d); };
   (F.lanes || []).forEach(l => grow(l.x, l.y, l.x + l.w, l.y + l.h));
+  GRP.forEach(g => { const b = grpBox(g); if (b) grow(b[0], b[1], b[0] + b[2], b[1] + b[3]); });
   Object.values(N).forEach(n => grow(n.x - n.w / 2, n.y - n.h / 2 - 16, n.x + n.w / 2, n.y + n.h / 2));
   Object.values(VIA).forEach(v => (v || []).forEach(p => grow(p[0], p[1], p[0], p[1])));
   const P = 20; VB = [x0 - P, y0 - P, x1 - x0 + 2 * P, y1 - y0 + 2 * P];
@@ -466,6 +526,7 @@ function drawStatic() {
     el('rect', { x: l.x, y: l.y, width: l.w, height: l.h, rx: 14, class: 'lane' }, $('gLanes'));
     if (l.t) el('text', { x: l.x + 14, y: l.y + 22, class: 'lt' }, $('gLanes')).textContent = l.t;
   });
+  drawGroups();
 
   for (const e of F.edges || []) {
     if (!N[e.a] || !N[e.b]) continue;
@@ -731,6 +792,7 @@ function applyMode() {
   for (const id in NL) if (N[id].byMode) { const o = nodeIn(id, mode); NL[id].tt.textContent = o.t || id; if (NL[id].ts) NL[id].ts.textContent = o.s || ''; }
   for (const id in NL) NL[id].g.classList.toggle('ghost', !vis(N[id], mode));
   for (const k in EL) { const e = EL[k].e; EL[k].g.classList.toggle('ghost', !vis(e, mode) || !vis(N[e.a], mode) || !vis(N[e.b], mode)); }
+  GL.forEach(L => L.g.classList.toggle('ghost', !vis(L.o, mode)));
 }
 function renderDiff() {
   const D = F.diff, box = $('diff');
@@ -801,6 +863,7 @@ function relayout(id) {
   layoutNode(id);
   for (const k in EL) { const e = EL[k].e; if (e.a === id || e.b === id) layoutEdge(k); }
   for (const t in TA) if (TA[t] === id && toks[t]) place(t, N[id].x, N[id].y);
+  if (GRP.some(g => Array.isArray(g.nodes) && g.nodes.includes(id))) layoutGroups();
 }
 function applySnap(S) { N[S.id].x = S.x; N[S.id].y = S.y; for (const k in S.via) VIA[k] = cloneVia(S.via[k]); relayout(S.id); }
 function setPos(P, x, y) {
@@ -841,6 +904,7 @@ function resetLayout() {
   for (const id in N) { N[id].x = BASE[id].x; N[id].y = BASE[id].y; layoutNode(id); }
   for (const k in VIA) VIA[k] = cloneVia(BASEVIA[k]);
   for (const k in EL) layoutEdge(k);
+  layoutGroups();
   for (const t in TA) if (TA[t] && toks[t]) place(t, N[TA[t]].x, N[TA[t]].y);
   MV.undo = []; MV.redo = [];
   afterLayout(); store.del('layout');
@@ -1025,7 +1089,7 @@ function download(name, text, type) { const a = document.createElement('a'); a.h
 function stamp() { return new Date().toISOString().slice(0, 16).replace(/[-:T]/g, ''); }
 
 /* ---------- export: SVG / PNG = what is on screen, HTML = page + data in one file ---------- */
-const STYLE_PROPS = ['fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-opacity', 'stroke-linecap', 'stroke-linejoin', 'opacity', 'font-family', 'font-size', 'font-weight', 'text-anchor', 'dominant-baseline', 'marker-start', 'marker-end'];
+const STYLE_PROPS = ['fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-opacity', 'stroke-linecap', 'stroke-linejoin', 'paint-order', 'opacity', 'font-family', 'font-size', 'font-weight', 'text-anchor', 'dominant-baseline', 'marker-start', 'marker-end'];
 function exportSvg(opt) {
   const o = Object.assign({ ghost: false, tokens: true }, opt), live = $('svg');
   live.classList.add('fm-snap'); void live.getBoundingClientRect();   /* finish fades now, so dimmed boxes export dimmed */
@@ -1278,7 +1342,7 @@ function audit(m) {
       if (EL[k].lb) ghosts.forEach(id => { if (over(EL[k].lb, box(N[id]), 0)) out.push(`label of ${k} overlaps faint box "${id}" (other mode)`); }); });
   }
   /* lane titles (drawn text, so measure it) */
-  [...$('gLanes').querySelectorAll('text')].forEach(t => {
+  [...$('gLanes').querySelectorAll('text.lt')].forEach(t => {
     const b = t.getBBox(), R = [b.x - 2, b.y - 2, b.x + b.width + 2, b.y + b.height + 2], name = t.textContent;
     nodes.forEach(id => { if (over(R, box(N[id]), 0)) out.push(`box "${id}" covers lane title "${name}"`); const tg = NL[id].tagR; if (tg && over(R, tg, 0)) out.push(`tag of "${id}" covers lane title "${name}"`); });
     edges.forEach(k => { if (EL[k].lb && over(R, EL[k].lb, 0)) out.push(`label of ${k} covers lane title "${name}"`); });
@@ -1290,6 +1354,20 @@ function audit(m) {
     nodes.forEach(id => { if (over(L, box(N[id]), 0)) out.push(`label of ${k} overlaps box "${id}"`); const t = NL[id].tagR; if (t && over(L, t, 0)) out.push(`label of ${k} overlaps tag of "${id}"`); });
     labs.forEach(o => { if (o > k && over(L, EL[o].lb, 0)) out.push(`labels overlap: ${k} / ${o}`); });
     edges.forEach(o => { if (o !== k && segs(o).some(s => hits(s, L, 1))) out.push(`label of ${k} sits on edge ${o}`); });
+  });
+  /* groups: tag / caption on a box, a tag, a label or a line; a frame edge through a box; a member hidden in this mode */
+  GL.forEach((L, i) => {
+    if (!L.box || !vis(L.o, md)) return;
+    const name = L.o.id ? `group "${L.o.id}"` : `groups[${i}]`, b = L.box, fr = [b[0], b[1], b[0] + b[2], b[1] + b[3]];
+    (Array.isArray(L.o.nodes) ? L.o.nodes : []).forEach(id => { if (N[id] && !visN(id)) out.push(`${name}: box "${id}" is hidden in this mode (give the group "modes", or drop the box from nodes)`); });
+    [['tag', L.tagR], ['caption', L.capR]].forEach(([w, R]) => {
+      if (!R) return;
+      nodes.forEach(id => { if (over(R, box(N[id]), 0)) out.push(`${w} of ${name} overlaps box "${id}"`); const t = NL[id].tagR; if (t && over(R, t, 0)) out.push(`${w} of ${name} overlaps tag of "${id}"`); });
+      labs.forEach(k => { if (over(R, EL[k].lb, 0)) out.push(`${w} of ${name} overlaps label of ${k}`); });
+      edges.forEach(k => { if (segs(k).some(s => hits(s, R, 1))) out.push(`edge ${k} passes through ${w} of ${name}`); });
+    });
+    if (L.capR && L.capR[2] > fr[2] - 4) out.push(`caption of ${name} is wider than its frame: shorten t or widen the group`);
+    nodes.forEach(id => { const r = box(N[id]), inside = r[0] >= fr[0] && r[1] >= fr[1] && r[2] <= fr[2] && r[3] <= fr[3]; if (!inside && over(r, fr, 0)) out.push(`frame of ${name} cuts through box "${id}"`); });
   });
   /* two edges drawn on top of each other (no shared node) */
   for (let i = 0; i < edges.length; i++) for (let j = i + 1; j < edges.length; j++) {
@@ -1303,7 +1381,7 @@ function audit(m) {
   }
   return [...new Set(out)];
 }
-window.flowMotion = { audit, moveNode, getLayout, resetLayout, setMoveMode, undo, redo, get moveMode() { return MV.on; }, exportSvg, exportPng, exportHtml, setMode, setScen, jump, reset, play, step, stepsOf: (id, m) => stepsOf(scObj(id), m || mode), get state() { return st; }, get mode() { return mode; }, get scen() { return scen; }, get idx() { return idx; } };
+window.flowMotion = { audit, groups: () => GL.map(L => ({ id: L.o.id || '', auto: Array.isArray(L.o.nodes), box: L.box && L.box.slice(), tag: L.tagR && L.tagR.slice(), caption: L.capR && L.capR.slice(), ghost: L.g.classList.contains('ghost') })), moveNode, getLayout, resetLayout, setMoveMode, undo, redo, get moveMode() { return MV.on; }, exportSvg, exportPng, exportHtml, setMode, setScen, jump, reset, play, step, stepsOf: (id, m) => stepsOf(scObj(id), m || mode), get state() { return st; }, get mode() { return mode; }, get scen() { return scen; }, get idx() { return idx; } };
 })();
 </script>
 </body>

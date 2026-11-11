@@ -119,6 +119,34 @@
       if (A[0] < B[2] && B[0] < A[2] && A[1] < B[3] && B[1] < A[3]) warn(`nodes "${a.id}" and "${b.id}" overlap`);
     }
 
+    /* groups: dashed frame behind boxes that run at the same time. { nodes: [ids], pad? } (auto-fit) or { x, y, w, h } (fixed) */
+    const gids = {};
+    arr(F.groups, 'groups').forEach((g, i) => {
+      if (!g || typeof g !== 'object' || Array.isArray(g)) return err(`groups[${i}] must be an object`);
+      const w = g.id ? `group "${g.id}"` : `groups[${i}]`;
+      if (g.id != null) { if (typeof g.id !== 'string') err(`${w}: id must be a string`); else if (gids[g.id]) err(`duplicate group id "${g.id}"`); gids[g.id] = 1; }
+      ['tag', 't'].forEach(k => { if (g[k] != null && typeof g[k] !== 'string') err(`${w}: ${k} must be a string`); });
+      if (typeof g.tag === 'string' && g.tag.length > 12) warn(`${w}: tag over 12 chars; keep it short (par, async, fan-out)`);
+      checkModes(w, g.modes);
+      const XYWH = ['x', 'y', 'w', 'h'], hasBox = XYWH.some(k => g[k] != null);
+      if (g.nodes != null) {
+        if (!Array.isArray(g.nodes) || !g.nodes.length) return err(`${w}: nodes must be a non-empty array of node ids`);
+        g.nodes.forEach(id => { if (!nodes[id]) err(`${w}: unknown node "${id}"`); });
+        if (g.pad != null && !fin(g.pad)) err(`${w}: pad must be a number`);
+        if (hasBox) warn(`${w}: x / y / w / h are ignored when nodes is set (the frame fits the boxes)`);
+        return;
+      }
+      if (!hasBox) return err(`${w}: needs nodes: [ids] (auto-fit) or x, y, w, h (fixed frame)`);
+      let bad = false;
+      XYWH.forEach(k => { if (!fin(g[k])) { bad = true; err(`${w}: ${k} must be a number`); } });
+      if (bad) return;
+      if (g.w <= 0 || g.h <= 0) return err(`${w}: w and h must be greater than 0`);
+      /* a fixed frame that holds no box of its modes is probably in the wrong place */
+      const gm = modes.filter(m => vis(g, m));
+      const inside = eff.some(n => n && fin(n.x) && fin(n.y) && gm.some(m => vis(n, m)) && (b => b[0] >= g.x && b[1] >= g.y && b[2] <= g.x + g.w && b[3] <= g.y + g.h)(box(n)));
+      if (!inside) warn(`${w}: the frame does not fully contain any box visible in its modes (misplaced? or use nodes: [ids])`);
+    });
+
     /* edges */
     const edges = {};
     arr(F.edges, 'edges').forEach((e, i) => {
