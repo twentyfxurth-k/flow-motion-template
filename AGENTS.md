@@ -46,6 +46,7 @@ This applies when you change the template itself (engine, tools, docs, example).
 
 ```
 lanes      background columns (actors / systems)
+groups     dashed frame behind boxes that run at the same time (goroutines + wg.Wait, Promise.all, async fan-out)
 nodes      boxes at (x, y) = centre point
 edges      arrows "a>b" between nodes
 modes      variants of the design; a node/edge with "modes" is shown only in those modes (others see a faint ghost)
@@ -66,6 +67,16 @@ window.FLOW = {
   desc: 'One or two sentences. `code` and **bold** work.',
 
   lanes: [ { x, y, w, h, t: 'Lane title' } ],           // optional, drawn behind everything
+
+  groups: [ {                    // optional; dashed frame behind boxes that run at the same time, see "Groups"
+    id: 'g_fanout',              // optional; used in messages
+    nodes: ['a_stock', 'a_price'], // auto-fit: frame = those boxes (and their tags) + pad, follows them when dragged
+    pad: 16,                     // optional, auto-fit only (default 16)
+    // or a fixed frame instead of nodes:  x: 400, y: 480, w: 520, h: 160
+    tag: 'par',                  // optional pill text at the bottom-left (default 'par'), keep it short
+    t: 'stock and price checked in parallel',   // optional caption next to the tag
+    modes: ['after'],            // optional; other modes see a faint ghost (or nothing with ghost: 'hide')
+  } ],
 
   nodes: [ {
     id: 'api_charge',            // unique, no spaces, no ">"
@@ -140,6 +151,18 @@ window.FLOW = {
 };
 ```
 
+### Groups (parallel work)
+
+**Parallel work = frame it with a group.** When boxes run at the same time (goroutines + `wg.Wait`, `Promise.all`, an async fan-out),
+put them in a row and add a `groups` entry, so the reader sees "these happen together" without reading the steps.
+
+- Prefer the auto-fit form `{ nodes: [...] }`: the frame is the bounding box of those boxes and their tag pills, plus `pad`, with room under them for the tag row.
+  It follows the boxes when they are dragged in `✥ Move` (and on undo / reset). A fixed `{ x, y, w, h }` frame never moves.
+- Frames are drawn above lanes and behind lines and boxes. List only the boxes that really run concurrently; the frame may also hold the box that fans them out.
+- Keep other boxes either fully inside or fully outside the frame (the audit flags a frame edge through a box). Leave about 30 units under the lowest box for the tag row.
+- Give the group the same `modes` as its boxes; the audit flags a listed box that is hidden in a mode where the group is shown.
+- Show the moves too: one token per parallel task (see "Steps"), so the frame and the motion tell the same story.
+
 ### Layout (`layout`) and dragging boxes
 
 - The order is: `nodes[].x/y` → `FLOW.layout` → the viewer's saved draft (see below). `layout` applies to every mode.
@@ -208,6 +231,7 @@ window.FLOW = {
 2. Open `index.html`. A red box at the top lists data errors; the console prints them as `[flow] …`.
    A yellow box lists **layout issues** found by the built-in audit, for every mode: text wider than its box, boxes or tags that overlap,
    lines that pass through a box or tag, labels that cover a box, a tag, another label, another line or a lane title, and two lines drawn on top of each other.
+   For groups: the tag or caption on a box, a tag, a label or a line, a caption wider than its frame, a frame edge through a box, and a listed box hidden in a mode where the group is shown.
    With `ghost: 'faint'` it also reports lines and labels that cross the faint boxes of other modes. **Get it to 0 before you hand the page over.**
 3. Headless check (optional), with any Chromium-based browser:
    ```sh
@@ -229,7 +253,9 @@ window.FLOW = {
 4. In the page, `window.FLOW_CHECK` holds `{errors, warnings}`, `window.FLOW_AUDIT` holds the layout issues, and `window.flowMotion` exposes `audit(modeId)`, `exportSvg({ghost, tokens})`, `exportPng(opt, scale)` (Promise of Blob), `exportHtml()`, `setMode(id)`, `setScen(id)`, `jump(n)`, `stepsOf(scenId, modeId)`, `state`,
    and for the layout: `moveNode(id, x, y)` (absolute; same path as a drag: undo, save, audit), `getLayout()` (`{nodes: {id: {x, y}}, edges: {"a>b": via}}`, only what differs from `flow.js`),
    `resetLayout()`, `setMoveMode(bool)`, `undo()`, `redo()`. Exports use the live positions; the HTML file embeds them as `FLOW.layout`.
+   `groups()` lists the drawn group frames (`{id, auto, box: [x, y, w, h], tag, caption, ghost}`). Exports include the frames; frames of other modes follow the ghost option.
 5. `node tools/drag.test.mjs [folder] [--shots <dir>]` tests dragging in headless Chrome (real pointer input over the DevTools protocol, Node 22+). It expects the bundled example `flow.js`.
+   `node tools/groups.test.mjs [folder] [--shots <dir>]` does the same for groups (drawing per mode, auto-fit, drag + undo, audit, validation, exports).
 
 ## Common errors
 
@@ -255,6 +281,11 @@ window.FLOW = {
 | `layout.x: x must be a finite number` | Use a plain number for `x` / `y`. |
 | `layout.edges: "a>b" is not an edge` / `must look like [[x,y],[x,y]]` | Fix the edge key, or the waypoint list. |
 | `layout.x: the box is outside every lane` | Move the box back into a lane (warning only). |
+| `group "g": needs nodes: [ids] (auto-fit) or x, y, w, h` | Give the group `nodes`, or a full `x, y, w, h` frame. |
+| `group "g": unknown node "x"` / `x must be a number` | Fix the id in `nodes`, or use plain numbers for the frame. |
+| `group "g": the frame does not fully contain any box` | The fixed frame is misplaced; move it, or switch to `nodes: [...]` (warning). |
+| `tag / caption of group "g" overlaps box …` · `frame of group "g" cuts through box …` | Move the boxes so the frame has room, shorten `t`, or change `pad`. |
+| `group "g": box "x" is hidden in this mode` | Give the group the same `modes` as its boxes, or drop the box from `nodes`. |
 
 ## Prompts users can give you
 
