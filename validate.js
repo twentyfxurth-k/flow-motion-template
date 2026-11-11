@@ -149,6 +149,15 @@
 
     /* edges */
     const edges = {};
+    /* a pinned port: { side: 'top' | 'right' | 'bottom' | 'left', t?: 0..1 along the side (default 0.5) }; null = not pinned */
+    const port = (where, p) => {
+      if (p == null) return;
+      if (typeof p !== 'object' || Array.isArray(p)) return err(`${where} must look like { side: 'bottom', t: 0.5 }`);
+      if (!['top', 'right', 'bottom', 'left'].includes(p.side)) err(`${where}: side must be "top", "right", "bottom" or "left"`);
+      if (p.t != null && !(fin(p.t) && p.t >= 0 && p.t <= 1)) err(`${where}: t must be a number from 0 to 1`);
+      Object.keys(p).forEach(x => { if (x !== 'side' && x !== 't') warn(`${where}: unknown key "${x}" (use side, t)`); });
+    };
+    const okLo = v => Array.isArray(v) && v.length === 2 && v.every(fin);
     arr(F.edges, 'edges').forEach((e, i) => {
       if (!e || !e.a || !e.b) return err(`edges[${i}] needs "a" and "b"`);
       const k = e.a + '>' + e.b;
@@ -158,7 +167,9 @@
       edges[k] = e;
       checkModes(`edge ${k}`, e.modes);
       if (e.lt != null && !(typeof e.lt === 'number' && e.lt > 0 && e.lt < 1)) err(`edge ${k}: lt must be a number between 0 and 1`);
-      if (e.route && !['auto', 'hv', 'vh'].includes(e.route)) err(`edge ${k}: route must be "auto", "hv" or "vh"`);
+      if (e.route && !['auto', 'hv', 'vh', 'manual'].includes(e.route)) err(`edge ${k}: route must be "auto", "hv", "vh" or "manual"`);
+      port(`edge ${k}: from`, e.from); port(`edge ${k}: to`, e.to);
+      if (e.lo != null && !okLo(e.lo)) err(`edge ${k}: lo must look like [dx, dy] (numbers)`);
       if (e.via != null && !(Array.isArray(e.via) && e.via.every(p => Array.isArray(p) && p.length === 2 && p.every(v => typeof v === 'number'))))
         err(`edge ${k}: via must look like [[x,y],[x,y]]`);
       modes.forEach(m => {
@@ -167,14 +178,22 @@
       });
     });
 
-    /* layout.edges: waypoints that replace edges[].via */
+    /* layout.edges: "a>b" → [[x,y],…] (bends that replace edges[].via) or { via, from, to, lt, lo, route } */
     if (lay.edges != null) {
-      const LE = lay.edges;
+      const LE = lay.edges, okV = x => Array.isArray(x) && x.length > 0 && x.every(p => Array.isArray(p) && p.length === 2 && p.every(fin));
       if (typeof LE !== 'object' || Array.isArray(LE)) err('layout.edges must be an object: { "a>b": [[x,y],…] }');
       else Object.keys(LE).forEach(k => {
         if (!edges[k]) return err(`layout.edges: "${k}" is not an edge`);
-        const v = LE[k];
-        if (!(Array.isArray(v) && v.length && v.every(p => Array.isArray(p) && p.length === 2 && p.every(fin)))) err(`layout.edges["${k}"] must look like [[x,y],[x,y]]`);
+        const v = LE[k], w = `layout.edges["${k}"]`;
+        if (Array.isArray(v)) { if (!okV(v)) err(`${w} must look like [[x,y],[x,y]]`); return; }
+        if (!v || typeof v !== 'object') return err(`${w} must be [[x,y],…] or { via, from, to, lt, lo, route }`);
+        Object.keys(v).forEach(f => { if (!['via', 'from', 'to', 'lt', 'lo', 'route'].includes(f)) warn(`${w}: unknown key "${f}" (use via, from, to, lt, lo, route)`); });
+        if (v.via != null && !okV(v.via)) err(`${w}.via must look like [[x,y],[x,y]] (numbers)`);
+        port(`${w}.from`, v.from); port(`${w}.to`, v.to);
+        if (v.lt != null && !(typeof v.lt === 'number' && v.lt > 0 && v.lt < 1)) err(`${w}.lt must be a number between 0 and 1`);
+        if (v.lo != null && !okLo(v.lo)) err(`${w}.lo must look like [dx, dy] (numbers)`);
+        if (v.route != null && !['auto', 'manual'].includes(v.route)) err(`${w}.route must be "auto" or "manual"`);
+        if (v.route === 'auto' && v.via != null) warn(`${w}: route "auto" ignores via (the bends are dropped)`);
       });
     }
 

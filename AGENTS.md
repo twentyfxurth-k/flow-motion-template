@@ -100,9 +100,13 @@ window.FLOW = {
     tip: 'Hover text',           // optional; same rich text as a node tip
     modes: ['after'],            // optional
     dash: true,                  // optional dashed line (timeouts, async, "may happen")
-    route: 'hv',                 // optional: 'auto' (default) | 'hv' (horizontal then vertical) | 'vh'
-    via: [[340,220],[340,380]],  // optional waypoints; overrides route (segments are always drawn horizontal/vertical)
+    route: 'hv',                 // optional: omit = the simple elbow | 'hv' (horizontal then vertical) | 'vh'
+                                 //   | 'auto' (routed around the other boxes) | 'manual' (through via)
+    via: [[340,220],[340,380]],  // optional waypoints (bends); overrides route (segments are always drawn horizontal/vertical)
+    from: { side: 'bottom', t: 0.25 },  // optional port on box a: side top|right|bottom|left, t = place along it 0..1 (default 0.5)
+    to: { side: 'top' },         // optional port on box b (diamonds and the round ends of pills always use the middle)
     lt: 0.25,                    // optional label position along the line, 0..1 (default 0.5)
+    lo: [12, -8],                // optional label offset [dx, dy] from that point
   } ],
 
   modes: [ { id: 'before', t: 'Before', d: 'What is different in this mode' } ],   // at least one; ids are used everywhere
@@ -146,7 +150,11 @@ window.FLOW = {
 
   layout: {                      // optional; positions applied on top of nodes[].x/y (the page's "📋 Copy positions" writes this block)
     api_charge: { x: 540, y: 560 },          // node id → { x?, y? } (centre, same units as nodes[])
-    edges: { 'a_fail>c_err': [[880, 445], [165, 445]] },   // optional; edge key "a>b" → waypoints that replace that edge's via
+    edges: {                     // optional; edge key "a>b" → its route as edited in the page
+      'a_fail>c_err': [[880, 445], [165, 445]],             // waypoints that replace that edge's via
+      'c_tap>c_post': { to: { side: 'right' }, lt: 0.3 },   // or { via?, from?, to?, lt?, lo?, route? }; null clears from / to / lo,
+      'a_save>a_enq': { route: 'auto' },                    //   route: 'auto' drops the via and routes around the boxes
+    },
   },
 };
 ```
@@ -169,11 +177,23 @@ put them in a row and add a `groups` entry, so the reader sees "these happen tog
 - `✥ Move` in the toolbar (off by default) lets anyone drag a box. Under 4px of movement is still a click (select).
   The box centre snaps to a 10px grid (hold Alt for no snap), Esc cancels a drag, the arrow keys move the selected box 10px (Shift = 1px),
   Ctrl/Cmd+Z undoes and Shift+Ctrl/Cmd+Z redoes (50 moves). Edges follow; the layout audit re-runs after every drop and its count for the current mode shows on the toggle.
-- Edge rule: when a box moves, the waypoint of each touching edge that is **nearest** the box follows it on the axis where it is lined up with the box centre
-  (same x → moves in x, same y → moves in y). Other waypoints stay. This keeps fan-out buses connected. Moved waypoints go in `layout.edges`.
+- Edges follow a moved box (draw.io style). An edge with `via` (or edited in the page) is **manual**: it keeps its middle bends and only its
+  end segments change. The bend next to the box slides along its own segment to line up with the port again (a fan-out bus stays connected);
+  if that leaves a zero-length or backwards segment, that bend is dropped and the next one is lined up instead.
+  Any other edge is **auto**: it keeps the simple elbow as long as nobody touches it (so `flow.js` draws exactly as before); once a box it
+  touches moves, it is routed live around the other boxes (12px clear, at most 3 bends where possible, never through a box when a route exists).
+  Changed routes go in `layout.edges`.
+- **Edit an arrow** (only with `✥ Move` on; outside Move mode a click on an arrow does nothing new): click a line to select it. Then drag
+  ■ a bend (10px snap, Alt = free; double-click = remove it, or select it and press Delete / Backspace),
+  ▬ the middle of a segment to move the whole segment (double-click it to add a bend; Alt-drag splits it),
+  ● an end along the border of **its own box** to choose the side (snapped to quarters of the side, Alt = free),
+  or the label along the line (saves `lt`; Alt-drag = free offset `lo`). `↺ Re-route` (shown for a selected arrow) and
+  `▾ Layout → ↺ Re-route all moved` put arrows back to auto. Esc cancels a drag, then deselects. Every edit is one undo step.
+- **An arrow can never be reconnected to another box**: scenario steps use `mv: 'a>b'`, so `a` / `b` are fixed. Dropping an end on another
+  box is refused (the end snaps back and a short message says so). To connect different boxes, edit `edges` in `flow.js`.
 - **Dragging is a draft tool.** Moves are saved only in that browser (`localStorage`, key `flowmotion:<FLOW.id>:layout`). They become permanent
   only when you paste the `layout` block from `▾ Layout → 📋 Copy positions` into `flow.js` (it replaces any existing `layout`), then run the checks.
-  `↺ Reset layout` drops the draft; `👁 Show moved` flashes the boxes that differ from `flow.js`.
+  `↺ Reset layout` drops the draft (boxes and arrows); `👁 Show moved` flashes the boxes and arrows that differ from `flow.js`.
 - A node with the id `edges` cannot be placed through `layout` (the key is reserved).
 
 ### Rich text (`tip`, `detail` items, question text)
@@ -252,10 +272,14 @@ put them in a row and add a `groups` entry, so the reader sees "these happen tog
    `#export=svg,png,html` (+ `&ghost=1`) writes the exports as JSON into a hidden `pre#flow-export` — `node tools/export.mjs` wraps this and saves the files.
 4. In the page, `window.FLOW_CHECK` holds `{errors, warnings}`, `window.FLOW_AUDIT` holds the layout issues, and `window.flowMotion` exposes `audit(modeId)`, `exportSvg({ghost, tokens})`, `exportPng(opt, scale)` (Promise of Blob), `exportHtml()`, `setMode(id)`, `setScen(id)`, `jump(n)`, `stepsOf(scenId, modeId)`, `state`,
    and for the layout: `moveNode(id, x, y)` (absolute; same path as a drag: undo, save, audit), `getLayout()` (`{nodes: {id: {x, y}}, edges: {"a>b": via}}`, only what differs from `flow.js`),
-   `resetLayout()`, `setMoveMode(bool)`, `undo()`, `redo()`. Exports use the live positions; the HTML file embeds them as `FLOW.layout`.
+   `resetLayout()`, `setMoveMode(bool)`, `undo()`, `redo()`; for arrows: `getEdgeRoute(key)` (`{via, from, to, lt, lo, route, pts}`),
+   `setEdgeRoute(key, {via, from, to, lt, lo, route})` (one undo step, same fields as a `layout.edges` entry), `rerouteEdge(key)`,
+   `rerouteAll(all)` (default: arrows of moved boxes and edited arrows; `true` = every arrow), `selectEdge(key)`, `addBend(key, x, y)`, `deleteBend(key, i)`,
+   `dragStats()` (`{frames, max, avg}` ms per frame of the last drag). Exports use the live positions and routes; the HTML file embeds them as `FLOW.layout`.
    `groups()` lists the drawn group frames (`{id, auto, box: [x, y, w, h], tag, caption, ghost}`). Exports include the frames; frames of other modes follow the ghost option.
 5. `node tools/drag.test.mjs [folder] [--shots <dir>]` tests dragging in headless Chrome (real pointer input over the DevTools protocol, Node 22+). It expects the bundled example `flow.js`.
    `node tools/groups.test.mjs [folder] [--shots <dir>]` does the same for groups (drawing per mode, auto-fit, drag + undo, audit, validation, exports).
+   `node tools/edges.test.mjs [folder] [--shots <dir>]` does the same for arrows (re-route on drag, bend / segment / end / label edits, undo, reload, exports, validation, a timed drag on a generated 60-box page).
 
 ## Common errors
 
@@ -280,6 +304,8 @@ put them in a row and add a `groups` entry, so the reader sees "these happen tog
 | `layout: "x" is not a node id` | Fix the id in `layout`, or remove the entry (the node was renamed or deleted). |
 | `layout.x: x must be a finite number` | Use a plain number for `x` / `y`. |
 | `layout.edges: "a>b" is not an edge` / `must look like [[x,y],[x,y]]` | Fix the edge key, or the waypoint list. |
+| `…from: side must be "top", "right", "bottom" or "left"` / `t must be a number from 0 to 1` | Fix the port (`{ side: 'bottom', t: 0.25 }`). |
+| `layout.edges["a>b"].lt / .lo / .route …` | `lt` between 0 and 1, `lo: [dx, dy]`, `route: 'auto'` or `'manual'`. |
 | `layout.x: the box is outside every lane` | Move the box back into a lane (warning only). |
 | `group "g": needs nodes: [ids] (auto-fit) or x, y, w, h` | Give the group `nodes`, or a full `x, y, w, h` frame. |
 | `group "g": unknown node "x"` / `x must be a number` | Fix the id in `nodes`, or use plain numbers for the frame. |
